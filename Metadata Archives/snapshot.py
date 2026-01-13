@@ -260,7 +260,7 @@ class JSONSnapshot(AbstractSnapshot):
         return JSONSnapshot(
             data=json_difference(self.data, below.data),
             failure_message=self.failure_message,
-            last_snapshot=None,
+            last_snapshot=below,
         )
 
     def set_time(self) -> None:
