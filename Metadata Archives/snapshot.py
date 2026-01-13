@@ -78,7 +78,7 @@ def json_difference(new: JSON, old: JSON) -> JSON | UnchangedJSONType:
                 key_difference = json_difference(new[key], old[key])
                 if key_difference is not UnchangedJSON:
                     difference[key] = key_difference
-        for key in old:
+        for key in old: # TODO: Fix "new" being set to "difference" by mistake
             if key not in new:
                 difference[key] = DeletedKey
         if len(difference) == 0:
@@ -225,7 +225,7 @@ class JSONSnapshot(AbstractSnapshot):
         # Public attributes are pickled
         self.data: JSON | UnchangedJSONType = UnchangedJSON
         self.failure_message: str | None = failure_message
-        self.timestamp: float | None = None
+        self.timestamp: float = time.time()
 
         # Handle failed snapshots
         if self.failure_message is not None:
@@ -266,6 +266,7 @@ class JSONSnapshot(AbstractSnapshot):
     def set_time(self) -> None:
         """
         Sets the time of the snapshot to the current time.
+        If never called, the snapshot time will be the time that ``__init__()`` was called.
 
         :rtype: None
         """
@@ -285,6 +286,7 @@ class DatabaseSnapshot(AbstractSnapshot):
         # Public attributes are pickled
         self.removed_users: set[str] = set()
         self.removed_projects: set[str] = set()
+        self.general_data: JSONSnapshot | None = None
         self.user_profiles: OrderedDict[str, JSONSnapshot | None] = OrderedDict()
         self.user_followers: OrderedDict[str, JSONSnapshot | None] = OrderedDict()
         self.projects: OrderedDict[str, JSONSnapshot | None] = OrderedDict()
@@ -304,6 +306,10 @@ class DatabaseSnapshot(AbstractSnapshot):
             return self
 
         composite = DatabaseSnapshot(last_snapshot=None)
+
+        composite.general_data = self.general_data
+        if self.general_data is not None:
+            composite.general_data = self.general_data.overlay(below.general_data)
 
         composite.user_profiles = below.user_profiles
         for user_id in self.user_profiles:
@@ -340,6 +346,8 @@ class DatabaseSnapshot(AbstractSnapshot):
             raise ValueError('"difference()" may only be called on absolute snapshots')
 
         difference = DatabaseSnapshot(last_snapshot=below)
+
+        difference.add_general_data(self.general_data)
 
         for user_id in self.user_profiles:
             difference.add_user_profile(user_id, self.user_profiles[user_id])
@@ -447,6 +455,37 @@ class DatabaseSnapshot(AbstractSnapshot):
             self.projects[project_id] = None
         else:
             self.projects.move_to_end(project_id)
+
+    def add_general_data(self, general_data: JSONSnapshot | None) -> None:
+        """
+        Adds general data to the database snapshot.
+
+        :param general_data: An absolute snapshot of the general data. If None, no changes will occur.
+        :type general_data: JSONSnapshot | None
+        :rtype: None
+        """
+        self.raise_unless_active()
+
+        if general_data is None:
+            return
+
+        # Validation
+        if general_data.is_relative:
+            raise ValueError('"general_data" must be an absolute snapshot')
+
+        # Simple case (absolute database snapshot)
+        if not self.is_relative:
+            self.general_data = general_data
+            return
+
+        # Get last data snapshot
+        last_data: JSONSnapshot | None = self._last_snapshot.general_data
+
+        # Save the difference between the snapshots
+        if last_data is None:
+            self.general_data = general_data
+            return
+        self.general_data = general_data.difference(last_data)
 
     def add_user_profile(self, user_id: str, user_profile: JSONSnapshot | None) -> None:
         """
@@ -572,6 +611,11 @@ if __name__ == '__main__':
 
     d = DatabaseSnapshot()
     d.start()
+    d.add_general_data(JSONSnapshot({
+        'users': 3754,
+        'projects': 9237,
+        'someotherstuff': 'idk',
+    }))
     d.add_user_id('imaginaryuserid')
     d.add_user_profile('imaginaryuserid', JSONSnapshot({
         'username': 'idkman',
@@ -591,6 +635,11 @@ if __name__ == '__main__':
 
     d2 = DatabaseSnapshot(last_snapshot=d)
     d2.start()
+    d2.add_general_data(JSONSnapshot({
+        'users': 3803,
+        'projects': 9446,
+        'someotherstuff': 'idk',
+    }))
     d2.add_user_id('imaginaryuserid')
     d2.add_user_profile('imaginaryuserid', JSONSnapshot({
         'username': 'idkman',
