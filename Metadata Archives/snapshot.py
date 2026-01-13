@@ -152,6 +152,14 @@ class AbstractSnapshot(metaclass=ABCMeta):
         self.__dict__.update(state)
         # TODO: Set _last_snapshot to contents of last snapshot if self.is_relative is True
 
+    def __repr__(self) -> str:
+        if self.is_relative:
+            return f'<{type(self).__name__}(last_snapshot={self._last_snapshot}) at {id(self)}>'
+        return f'<{type(self).__name__}() at {id(self)}>'
+
+    def __str__(self) -> str:
+        return repr(self)
+
     @abstractmethod
     def overlay(self, below: Self) -> Self:
         """
@@ -226,11 +234,11 @@ class JSONSnapshot(AbstractSnapshot):
     def difference(self, below: Self) -> Self:
         if below.is_relative:
             raise ValueError('"below" must be an absolute snapshot')
-        if not self.is_relative:
+        if self.is_relative:
             raise ValueError('"difference()" may only be called on absolute snapshots')
 
         return JSONSnapshot(
-            data=json_difference(self.data, self._last_snapshot.data),
+            data=json_difference(self.data, below.data),
             failure_message=self.failure_message,
             last_snapshot=None,
         )
@@ -308,7 +316,7 @@ class DatabaseSnapshot(AbstractSnapshot):
     def difference(self, below: Self) -> Self:
         if below.is_relative:
             raise ValueError('"below" must be an absolute snapshot')
-        if not self.is_relative:
+        if self.is_relative:
             raise ValueError('"difference()" may only be called on absolute snapshots')
 
         difference = DatabaseSnapshot(last_snapshot=below)
@@ -364,14 +372,16 @@ class DatabaseSnapshot(AbstractSnapshot):
 
         self.end_time = time.time()
 
-        # Remove added IDs that never got metadata attached to them
-        for user_id in self.user_profiles:
+        # Remove added IDs that never got metadata attached to them.
+        # We do not add these IDs to removed_users or removed_projects because they were not necessarily deleted;
+        # rather, they were just unchanged.
+        for user_id in list(self.user_profiles.keys()):
             if self.user_profiles[user_id] is None:
                 del self.user_profiles[user_id]
-        for user_id in self.user_followers:
+        for user_id in list(self.user_followers.keys()):
             if self.user_followers[user_id] is None:
                 del self.user_followers[user_id]
-        for project_id in self.projects:
+        for project_id in list(self.projects.keys()):
             if self.projects[project_id] is None:
                 del self.projects[project_id]
 
@@ -534,3 +544,44 @@ class DatabaseSnapshot(AbstractSnapshot):
             self.projects[project_id] = project
             return
         self.projects[project_id] = project.difference(last_metadata)
+
+
+
+def main() -> None:
+    input('Press ENTER to run the test.')
+
+    d = DatabaseSnapshot()
+    d.start()
+    d.add_user_id('imaginaryuserid')
+    d.add_user_profile('imaginaryuserid', JSONSnapshot({
+        'username': 'idkman',
+        'real_username': 'istilldkman',
+        'followers': 23,
+        'badges': ['epic', 'sus', 'soupfan'],
+        'icant': 'remembertheotherkeys',
+    }))
+    d.add_user_id('userthatwillbedeleted')
+    d.add_user_profile('userthatwillbedeleted', JSONSnapshot({
+        'username': 'goodbye',
+        'real_username': 'Goodbye',
+        'followers': 999,
+        'badges': ['soupfan', 'abouttobedeleted'],
+    }))
+    d.finish()
+
+    d2 = DatabaseSnapshot(last_snapshot=d)
+    d2.start()
+    d2.add_user_id('imaginaryuserid')
+    d2.add_user_profile('imaginaryuserid', JSONSnapshot({
+        'username': 'idkman',
+        'real_username': 'istilldkman',
+        'followers': 27,
+        'privateprofile': False,
+        'badges': ['epic', 'sus', 'soupfan', 'eventwinner'],
+        'bio': 'i have a bio now ;D',
+    }))
+    # Don't add "userthatwillbedeleted" so they are deleted
+    d2.finish()
+
+if __name__ == '__main__':
+    main()
