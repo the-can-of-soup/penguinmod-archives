@@ -265,9 +265,9 @@ class DatabaseSnapshot(AbstractSnapshot):
 
         if self.is_relative:
             # noinspection PyUnresolvedReferences
-            self.removed_users = set(self._last_snapshot.modified_users.keys())
+            self.removed_users = set(self._last_snapshot.user_profiles.keys())
             # noinspection PyUnresolvedReferences
-            self.removed_projects = set(self._last_snapshot.modified_projects.keys())
+            self.removed_projects = set(self._last_snapshot.user_followers.keys())
 
     def overlay(self, below: Self) -> Self:
         if below.is_relative:
