@@ -339,14 +339,16 @@ class DatabaseSnapshot(AbstractSnapshot):
         self.start_time = time.time()
         self.end_time = None
 
-    def raise_unless_started(self) -> None:
+    def raise_unless_active(self) -> None:
         """
-        Raises a RuntimeError if ``start()`` has not been called.
+        Raises a RuntimeError if ``start()`` has not been called, or if ``finish()`` has.
 
         :rtype: None
         """
         if self.start_time is None:
             raise RuntimeError('"start()" was not called')
+        if self.end_time is not None:
+            raise RuntimeError('"finish()" was called')
 
     def finish(self) -> None:
         """
@@ -355,7 +357,8 @@ class DatabaseSnapshot(AbstractSnapshot):
 
         :rtype: None
         """
-        self.raise_unless_started()
+        if self.start_time is None:
+            raise RuntimeError('"finish()" should only be called after "start()" has been called')
         if self.end_time is not None:
             raise RuntimeError('"finish()" should only be called once')
 
@@ -381,7 +384,7 @@ class DatabaseSnapshot(AbstractSnapshot):
         :type user_id: str
         :rtype: None
         """
-        self.raise_unless_started()
+        self.raise_unless_active()
 
         if user_id in self.removed_users:
             self.removed_users.remove(user_id)
@@ -405,7 +408,7 @@ class DatabaseSnapshot(AbstractSnapshot):
         :type project_id: str
         :rtype: None
         """
-        self.raise_unless_started()
+        self.raise_unless_active()
 
         if project_id in self.removed_projects:
             self.removed_projects.remove(project_id)
@@ -426,7 +429,7 @@ class DatabaseSnapshot(AbstractSnapshot):
         :type user_profile: JSONSnapshot | None
         :rtype: None
         """
-        self.raise_unless_started()
+        self.raise_unless_active()
 
         if user_profile is None:
             return
@@ -465,7 +468,7 @@ class DatabaseSnapshot(AbstractSnapshot):
         :type user_followers: JSONSnapshot | None
         :rtype: None
         """
-        self.raise_unless_started()
+        self.raise_unless_active()
 
         if user_followers is None:
             return
@@ -504,7 +507,7 @@ class DatabaseSnapshot(AbstractSnapshot):
         :type project: JSONSnapshot | None
         :rtype: None
         """
-        self.raise_unless_started()
+        self.raise_unless_active()
 
         if project is None:
             return
