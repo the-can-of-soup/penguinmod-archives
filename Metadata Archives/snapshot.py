@@ -213,7 +213,7 @@ class JSONSnapshot(AbstractSnapshot):
 
     def overlay(self, below: Self) -> Self:
         if below.is_relative:
-            raise ValueError('below must be an absolute snapshot')
+            raise ValueError('"below" must be an absolute snapshot')
         if not self.is_relative:
             return self
 
@@ -225,9 +225,9 @@ class JSONSnapshot(AbstractSnapshot):
 
     def difference(self, below: Self) -> Self:
         if below.is_relative:
-            raise ValueError('below must be an absolute snapshot')
+            raise ValueError('"below" must be an absolute snapshot')
         if not self.is_relative:
-            raise ValueError('difference() may only be called on absolute snapshots')
+            raise ValueError('"difference()" may only be called on absolute snapshots')
 
         return JSONSnapshot(
             data=json_difference(self.data, self._last_snapshot.data),
@@ -271,7 +271,7 @@ class DatabaseSnapshot(AbstractSnapshot):
 
     def overlay(self, below: Self) -> Self:
         if below.is_relative:
-            raise ValueError('below must be an absolute snapshot')
+            raise ValueError('"below" must be an absolute snapshot')
         if not self.is_relative:
             return self
 
@@ -307,9 +307,9 @@ class DatabaseSnapshot(AbstractSnapshot):
 
     def difference(self, below: Self) -> Self:
         if below.is_relative:
-            raise ValueError('below must be an absolute snapshot')
+            raise ValueError('"below" must be an absolute snapshot')
         if not self.is_relative:
-            raise ValueError('difference() may only be called on absolute snapshots')
+            raise ValueError('"difference()" may only be called on absolute snapshots')
 
         difference = DatabaseSnapshot(last_snapshot=below)
 
@@ -326,23 +326,43 @@ class DatabaseSnapshot(AbstractSnapshot):
 
         return difference
 
-    def set_start_time(self) -> None:
+    def start(self) -> None:
         """
-        Sets the start time of the snapshot to the current time.
-        Also clears the end time.
+        Sets the start time to the current time and prepares the snapshot for writing.
+        Should be called exactly once immediately before fetching data to be archived.
 
         :rtype: None
         """
+        if self.start_time is not None:
+            raise RuntimeError('"start()" should only be called once')
+
         self.start_time = time.time()
         self.end_time = None
 
-    def set_end_time(self) -> None:
+    def finish(self) -> None:
         """
-        Sets the end time of the snapshot to the current time.
+        Sets the end time to the current time and finishes writing.
+        Should be called exactly once immediately after all fetched data has been archived.
 
         :rtype: None
         """
+        if self.start_time is None:
+            raise RuntimeError('"finish()" should only be called after "start()" has been called')
+        if self.end_time is not None:
+            raise RuntimeError('"finish()" should only be called once')
+
         self.end_time = time.time()
+
+        # Remove added IDs that never got metadata attached to them
+        for user_id in self.user_profiles:
+            if self.user_profiles[user_id] is None:
+                del self.user_profiles[user_id]
+        for user_id in self.user_followers:
+            if self.user_followers[user_id] is None:
+                del self.user_followers[user_id]
+        for project_id in self.projects:
+            if self.projects[project_id] is None:
+                del self.projects[project_id]
 
     def add_user_id(self, user_id: str) -> None:
         """
@@ -399,7 +419,7 @@ class DatabaseSnapshot(AbstractSnapshot):
 
         # Validation
         if user_profile.is_relative:
-            raise ValueError('user_profile must be an absolute snapshot')
+            raise ValueError('"user_profile" must be an absolute snapshot')
         if user_id not in self.user_profiles:
             raise RuntimeError(f'Cannot add profile to user ID "{user_id}" before their ID is added')
 
@@ -436,7 +456,7 @@ class DatabaseSnapshot(AbstractSnapshot):
 
         # Validation
         if user_followers.is_relative:
-            raise ValueError('user_followers must be an absolute snapshot')
+            raise ValueError('"user_followers" must be an absolute snapshot')
         if user_id not in self.user_followers:
             raise RuntimeError(f'Cannot add followers to user ID "{user_id}" before their ID is added')
 
@@ -473,7 +493,7 @@ class DatabaseSnapshot(AbstractSnapshot):
 
         # Validation
         if project.is_relative:
-            raise ValueError('project must be an absolute snapshot')
+            raise ValueError('"project" must be an absolute snapshot')
         if project_id not in self.projects:
             raise RuntimeError(f'Cannot add metadata to project ID "{project_id}" before its ID is added')
 
