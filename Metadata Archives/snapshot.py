@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import abc
 from abc import abstractmethod, ABCMeta
 from typing import Any, Union, Self
 from collections import OrderedDict
@@ -18,10 +19,27 @@ class AbstractSingleton(metaclass=ABCMeta):
             cls._instance = super().__new__(cls)
         return cls._instance
 
+    def __repr__(self) -> str:
+        return f'{type(self).singleton_name()}'
+
+    def __str__(self) -> str:
+        return repr(self)
+
+    @abc.abstractmethod
+    def singleton_name(self) -> str:
+        """
+        Return the name of the singleton.
+
+        :return: The name of the singleton.
+        :rtype: str
+        """
+
 class UnchangedJSONType(AbstractSingleton):
     """
     Type for UnchangedJSON singleton.
     """
+    def singleton_name(self) -> str:
+        return 'UnchangedJSON'
 
 UnchangedJSON = UnchangedJSONType()
 
@@ -29,6 +47,8 @@ class DeletedKeyType(AbstractSingleton):
     """
     Type for DeletedKey singleton.
     """
+    def singleton_name(self) -> str:
+        return 'DeletedKey'
 
 DeletedKey = DeletedKeyType()
 
@@ -155,7 +175,7 @@ class AbstractSnapshot(metaclass=ABCMeta):
     def __repr__(self) -> str:
         if self.is_relative:
             return f'<{type(self).__name__}(last_snapshot={self._last_snapshot}) at {id(self)}>'
-        return f'<{type(self).__name__}() at {id(self)}>'
+        return f'<{type(self).__name__}(last_snapshot=None) at {id(self)}>'
 
     def __str__(self) -> str:
         return repr(self)
@@ -547,7 +567,7 @@ class DatabaseSnapshot(AbstractSnapshot):
 
 
 
-def main() -> None:
+if __name__ == '__main__':
     input('Press ENTER to run the test.')
 
     d = DatabaseSnapshot()
@@ -583,5 +603,4 @@ def main() -> None:
     # Don't add "userthatwillbedeleted" so they are deleted
     d2.finish()
 
-if __name__ == '__main__':
-    main()
+    input('Finished! Press ENTER to close the test.')
