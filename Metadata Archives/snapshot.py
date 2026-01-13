@@ -339,6 +339,15 @@ class DatabaseSnapshot(AbstractSnapshot):
         self.start_time = time.time()
         self.end_time = None
 
+    def raise_unless_started(self) -> None:
+        """
+        Raises a RuntimeError if ``start()`` has not been called.
+
+        :rtype: None
+        """
+        if self.start_time is None:
+            raise RuntimeError('"start()" was not called')
+
     def finish(self) -> None:
         """
         Sets the end time to the current time and finishes writing.
@@ -346,8 +355,7 @@ class DatabaseSnapshot(AbstractSnapshot):
 
         :rtype: None
         """
-        if self.start_time is None:
-            raise RuntimeError('"finish()" should only be called after "start()" has been called')
+        self.raise_unless_started()
         if self.end_time is not None:
             raise RuntimeError('"finish()" should only be called once')
 
@@ -373,6 +381,8 @@ class DatabaseSnapshot(AbstractSnapshot):
         :type user_id: str
         :rtype: None
         """
+        self.raise_unless_started()
+
         if user_id in self.removed_users:
             self.removed_users.remove(user_id)
 
@@ -395,6 +405,8 @@ class DatabaseSnapshot(AbstractSnapshot):
         :type project_id: str
         :rtype: None
         """
+        self.raise_unless_started()
+
         if project_id in self.removed_projects:
             self.removed_projects.remove(project_id)
 
@@ -414,6 +426,8 @@ class DatabaseSnapshot(AbstractSnapshot):
         :type user_profile: JSONSnapshot | None
         :rtype: None
         """
+        self.raise_unless_started()
+
         if user_profile is None:
             return
 
@@ -451,6 +465,8 @@ class DatabaseSnapshot(AbstractSnapshot):
         :type user_followers: JSONSnapshot | None
         :rtype: None
         """
+        self.raise_unless_started()
+
         if user_followers is None:
             return
 
@@ -488,6 +504,8 @@ class DatabaseSnapshot(AbstractSnapshot):
         :type project: JSONSnapshot | None
         :rtype: None
         """
+        self.raise_unless_started()
+
         if project is None:
             return
 
