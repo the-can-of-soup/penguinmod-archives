@@ -20,7 +20,7 @@ class AbstractSingleton(metaclass=ABCMeta):
         return cls._instance
 
     def __repr__(self) -> str:
-        return f'{type(self).singleton_name()}'
+        return f'{self.singleton_name()}'
 
     def __str__(self) -> str:
         return repr(self)
