@@ -353,7 +353,8 @@ class DatabaseSnapshot(AbstractSnapshot):
         :type user_id: str
         :rtype: None
         """
-        self.removed_users.remove(user_id)
+        if user_id in self.removed_users:
+            self.removed_users.remove(user_id)
 
         if user_id not in self.user_profiles:
             self.user_profiles[user_id] = None
@@ -374,7 +375,8 @@ class DatabaseSnapshot(AbstractSnapshot):
         :type project_id: str
         :rtype: None
         """
-        self.removed_projects.remove(project_id)
+        if project_id in self.removed_projects:
+            self.removed_projects.remove(project_id)
 
         if project_id not in self.projects:
             self.projects[project_id] = None
