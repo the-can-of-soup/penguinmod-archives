@@ -78,7 +78,7 @@ def json_difference(new: JSON, old: JSON) -> JSON | UnchangedJSONType:
                 key_difference = json_difference(new[key], old[key])
                 if key_difference is not UnchangedJSON:
                     difference[key] = key_difference
-        for key in old: # TODO: Fix "new" being set to "difference" by mistake
+        for key in old:
             if key not in new:
                 difference[key] = DeletedKey
         if len(difference) == 0:
@@ -258,7 +258,7 @@ class JSONSnapshot(AbstractSnapshot):
             raise ValueError('"difference()" may only be called on absolute snapshots')
 
         return JSONSnapshot(
-            data=json_difference(self.data, below.data),
+            data=self.data,
             failure_message=self.failure_message,
             last_snapshot=below,
         )
