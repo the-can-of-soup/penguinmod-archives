@@ -224,9 +224,9 @@ class AbstractSnapshot(metaclass=ABCMeta):
             return self.overlay(self._last_snapshot.resolve())
         return self
 
-    def save_to_disk(self) -> str:
+    def save_to_file(self) -> str:
         """
-        Saves the snapshot to disk.
+        Saves the snapshot to a file.
 
         :return: The filename of the snapshot.
         :rtype: str
@@ -256,9 +256,9 @@ class AbstractSnapshot(metaclass=ABCMeta):
         return self.filename
 
     @classmethod
-    def load_from_disk(cls, file_path: str) -> Self:
+    def load_from_file(cls, file_path: str) -> Self:
         """
-        Creates a snapshot object by loading from disk.
+        Creates a snapshot object by loading from a file.
 
         WARNING: This function is vulnerable to deserialization attacks!
 
@@ -275,7 +275,7 @@ class AbstractSnapshot(metaclass=ABCMeta):
         if snapshot.is_relative:
             if snapshot.last_snapshot_file_path is None:
                 raise RuntimeError('Attempted to load a relative snapshot file that doesn\'t contain the path to the previous snapshot file')
-            snapshot._last_snapshot = cls.load_from_disk(snapshot.last_snapshot_file_path)
+            snapshot._last_snapshot = cls.load_from_file(snapshot.last_snapshot_file_path)
 
         return snapshot
 
