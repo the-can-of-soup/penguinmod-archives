@@ -238,7 +238,7 @@ class AbstractSnapshot(metaclass=ABCMeta):
         # Generate filename
         local_time: time.struct_time = time.localtime()
         random_id: str = ''.join([random.choice('0123456789abcdef') for _ in range(8)])
-        self.filename = f'{type(self).__name__}_{local_time.tm_mon:02}-{local_time.tm_mday:02}-{local_time.tm_year:04}_{local_time.tm_hour:02}-{local_time.tm_min:02}-{local_time.tm_sec:02}_{random_id}.dat'
+        self.filename = f'{type(self).__name__}{"_relative" if self.is_relative else ""}_{local_time.tm_mon:02}-{local_time.tm_mday:02}-{local_time.tm_year:04}_{local_time.tm_hour:02}-{local_time.tm_min:02}-{local_time.tm_sec:02}_{random_id}.dat'
         self.file_path = os.path.abspath(os.path.join(SNAPSHOTS_DIR, self.filename))
 
         # Save filename of last snapshot (if it exists)
@@ -268,6 +268,8 @@ class AbstractSnapshot(metaclass=ABCMeta):
         # Load snapshot
         with open(file_path, 'rb') as f:
             snapshot: Self = pickle.load(f)
+        if not isinstance(snapshot, cls):
+            raise TypeError('Attempted to load a snapshot file that contains a non-snapshot object')
 
         # Load last snapshot
         if snapshot.is_relative:
