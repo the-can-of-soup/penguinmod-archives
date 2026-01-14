@@ -3,7 +3,12 @@ from __future__ import annotations
 from abc import abstractmethod, ABCMeta
 from typing import Any, Union, Self
 from collections import OrderedDict
+import random
+import pickle
 import time
+import os
+
+SNAPSHOTS_DIR: str = 'snapshots'
 
 JSON = Union[dict, list, str, float, bool, None]
 
@@ -162,6 +167,10 @@ class AbstractSnapshot(metaclass=ABCMeta):
 
         # Public attributes are pickled
         self.is_relative: bool = self._last_snapshot is not None
+        self.filename: str | None = None
+        self.file_path: str | None = None
+        self.last_snapshot_filename: str | None = None
+        self.last_snapshot_file_path: str | None = None
 
     def __getstate__(self) -> dict[str, Any]:
         attributes: dict[str, Any] = self.__dict__.copy()
@@ -169,7 +178,9 @@ class AbstractSnapshot(metaclass=ABCMeta):
 
     def __setstate__(self, state: dict[str, Any]) -> None:
         self.__dict__.update(state)
-        # TODO: Set _last_snapshot to contents of last snapshot if self.is_relative is True
+
+        # _last_snapshot is set in load_from_disk()
+        self._last_snapshot = None
 
     def __repr__(self) -> str:
         if self.is_relative:
@@ -212,6 +223,55 @@ class AbstractSnapshot(metaclass=ABCMeta):
         if self.is_relative:
             return self.overlay(self._last_snapshot.resolve())
         return self
+
+    def save_to_disk(self) -> str:
+        """
+        Saves the snapshot to disk.
+
+        :return: The filename of the snapshot.
+        :rtype: str
+        """
+        # Generate filename
+        local_time: time.struct_time = time.localtime()
+        random_id: str = ''.join([random.choice('0123456789abcdef') for _ in range(8)])
+        self.filename = f'{type(self).__name__}_{local_time.tm_mon}-{local_time.tm_mday}-{local_time.tm_year}_{local_time.tm_hour}-{local_time.tm_min}-{local_time.tm_sec}_{random_id}.dat'
+        self.file_path = os.path.abspath(os.path.join(SNAPSHOTS_DIR, self.filename))
+
+        # Save filename of last snapshot (if it exists)
+        self.last_snapshot_filename = None
+        self.last_snapshot_file_path = None
+        if self.is_relative:
+            self.last_snapshot_filename = self._last_snapshot.filename
+            self.last_snapshot_file_path = self._last_snapshot.file_path
+
+        # Save snapshot to disk
+        with open(self.file_path, 'wb') as f:
+            # noinspection PyTypeChecker
+            pickle.dump(self, f)
+
+        return self.filename
+
+    @classmethod
+    def load_from_disk(cls, file_path: str) -> Self:
+        """
+        Creates a snapshot object by loading from disk.
+
+        WARNING: This function is vulnerable to deserialization attacks!
+
+        :return: The snapshot object.
+        :rtype: Self
+        """
+        # Load snapshot
+        with open(file_path, 'rb') as f:
+            snapshot: Self = pickle.load(f)
+
+        # Load last snapshot
+        if snapshot.is_relative:
+            if snapshot.last_snapshot_file_path is None:
+                raise RuntimeError('Attempted to load a relative snapshot file that doesn\'t contain the path to the previous snapshot file')
+            snapshot._last_snapshot = cls.load_from_disk(snapshot.last_snapshot_file_path)
+
+        return snapshot
 
 class JSONSnapshot(AbstractSnapshot):
     """
