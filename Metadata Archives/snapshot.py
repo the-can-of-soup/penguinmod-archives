@@ -184,8 +184,8 @@ class AbstractSnapshot(metaclass=ABCMeta):
 
     def __repr__(self) -> str:
         if self.is_relative:
-            return f'<{type(self).__name__}(last_snapshot={self._last_snapshot}) at {id(self)}>'
-        return f'<{type(self).__name__}(last_snapshot=None) at {id(self)}>'
+            return f'<{type(self).__name__}(last_snapshot={self._last_snapshot}) at {hex(id(self))}>'
+        return f'<{type(self).__name__}(last_snapshot=None) at {hex(id(self))}>'
 
     def __str__(self) -> str:
         return repr(self)
