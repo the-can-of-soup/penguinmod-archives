@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import abc
 from abc import abstractmethod, ABCMeta
 from typing import Any, Union, Self
 from collections import OrderedDict
@@ -25,7 +24,7 @@ class AbstractSingleton(metaclass=ABCMeta):
     def __str__(self) -> str:
         return repr(self)
 
-    @abc.abstractmethod
+    @abstractmethod
     def singleton_name(self) -> str:
         """
         Return the name of the singleton.
