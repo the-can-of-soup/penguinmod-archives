@@ -231,6 +231,10 @@ class AbstractSnapshot(metaclass=ABCMeta):
         :return: The filename of the snapshot.
         :rtype: str
         """
+        # Create snapshots directory
+        if not os.path.isdir(SNAPSHOTS_DIR):
+            os.mkdir(SNAPSHOTS_DIR)
+
         # Generate filename
         local_time: time.struct_time = time.localtime()
         random_id: str = ''.join([random.choice('0123456789abcdef') for _ in range(8)])
