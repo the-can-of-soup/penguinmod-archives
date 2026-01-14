@@ -234,7 +234,7 @@ class AbstractSnapshot(metaclass=ABCMeta):
         # Generate filename
         local_time: time.struct_time = time.localtime()
         random_id: str = ''.join([random.choice('0123456789abcdef') for _ in range(8)])
-        self.filename = f'{type(self).__name__}_{local_time.tm_mon}-{local_time.tm_mday}-{local_time.tm_year}_{local_time.tm_hour}-{local_time.tm_min}-{local_time.tm_sec}_{random_id}.dat'
+        self.filename = f'{type(self).__name__}_{local_time.tm_mon:02}-{local_time.tm_mday:02}-{local_time.tm_year:04}_{local_time.tm_hour:02}-{local_time.tm_min:02}-{local_time.tm_sec:02}_{random_id}.dat'
         self.file_path = os.path.abspath(os.path.join(SNAPSHOTS_DIR, self.filename))
 
         # Save filename of last snapshot (if it exists)
