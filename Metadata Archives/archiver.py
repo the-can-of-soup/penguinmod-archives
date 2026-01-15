@@ -8,6 +8,7 @@ import requests
 import tqdm
 import time
 import math
+import sys
 
 BASE_URL: str = 'https://projects.penguinmod.com'
 MAX_SIMULTANEOUS_LIGHT_REQUESTS: int = 4
@@ -23,9 +24,10 @@ def fetch(method: str, url: str, params: dict[str, str] | None = None, data: dic
     i = 0
     while i <= max_retries:
         if i == 0:
-            print(status_prefix + f'Fetching...', end='')
+            sys.stdout.write(status_prefix + f'Fetching...')
         else:
-            print(status_prefix + f'Fetching (retry {i})...', end='')
+            sys.stdout.write(status_prefix + f'Fetching (retry {i})...')
+        sys.stdout.flush()
 
         # Send request
         try:
@@ -53,7 +55,8 @@ def countdown(duration: float, prefix: str = '', suffix: str = '') -> None:
         now: float = time.time()
         if now - start_time >= duration:
             return
-        print(prefix + f'{duration - (now - start_time):.1f}' + suffix, end='')
+        sys.stdout.write(prefix + f'{duration - (now - start_time):.1f}' + suffix)
+        sys.stdout.flush()
         time.sleep(0.05)
 
 def main() -> None:
@@ -84,7 +87,7 @@ def main() -> None:
     print('STAGE 2: FIND USERNAMES')
     print('-----------------------')
 
-    progress_bar = tqdm.tqdm(total=user_count) # Line 3
+    progress_bar = tqdm.tqdm(total=user_count)
 
     user_page_count: int = math.ceil(user_count / EXPECTED_PAGE_SIZE)
     for page_idx in range(user_page_count):
@@ -97,10 +100,14 @@ def main() -> None:
             snapshot.add_user_id(user['id'])
             page_usernames.append(user['username'])
 
+        sys.stdout.write('\033[3;1H\033[0K') ; sys.stdout.flush() # Line 3
         progress_bar.update(len(response.data))
+
         print('\033[5;1H\033[0JUsernames on last page: ' + (', '.join(page_usernames)))  # Line 5 (clear to end of screen)
+
         countdown(HEAVY_REQUEST_DELAY, prefix='\033[4;1H\033[0KWaiting... ') # Line 4
 
+    sys.stdout.write('\033[3;1H\033[0K') ; sys.stdout.flush() # Line 3
     progress_bar.close()
 
     input('TODO')
