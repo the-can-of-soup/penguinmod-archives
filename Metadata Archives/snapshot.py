@@ -300,8 +300,10 @@ class AbstractSnapshot(metaclass=ABCMeta):
 
     def link_relative_subsnapshots(self) -> None:
         """
-        Sets the ``last_snapshot`` attribute of all relative subsnapshots.
-        Should be overwritten by subclasses of ``AbstractSnapshot`` that serialize subsnapshots.
+        Sets the ``last_snapshot`` attribute of all relative subsnapshots (relative snapshots stored in attributes of this snapshot).
+        This is used after loading from a file to ensure that there are no unlinked relative snapshots.
+
+        Should be overwritten by all subclasses of ``AbstractSnapshot`` that store subsnapshots.
 
         :rtype: None
         """
@@ -310,10 +312,13 @@ class AbstractSnapshot(metaclass=ABCMeta):
         """
         Raises a RuntimeError if this snapshot is set as relative, but is not linked to the last snapshot.
 
+        This situation should only occur during the load process, but can be encountered later if
+        ``link_relative_subsnapshots()`` is not defined properly.
+
         :rtype: None
         """
         if self.is_relative and self.last_snapshot is None:
-            raise RuntimeError('Unlinked relative snapshot')
+            raise RuntimeError(f'Unlinked relative snapshot; make sure {type(self).__name__}.link_relative_subsnapshots() is defined properly')
 
 class JSONSnapshot(AbstractSnapshot):
     """
