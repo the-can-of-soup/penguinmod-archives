@@ -325,7 +325,7 @@ class JSONSnapshot(AbstractSnapshot):
     A JSON response from an API.
     Might only include changes from the previous snapshot.
     """
-    def __init__(self, data: JSON | UnchangedJSONType = UnchangedJSON, failure_message: str | None = None, last_snapshot: JSONSnapshot | None = None) -> None:
+    def __init__(self, data: JSON | UnchangedJSONType = None, failure_message: str | None = None, last_snapshot: JSONSnapshot | None = None) -> None:
         """
         :param data: The JSON response (can be None).
         :type data: JSON | UnchangedJSONType
