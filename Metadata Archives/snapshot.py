@@ -159,33 +159,52 @@ class AbstractSnapshot(metaclass=ABCMeta):
     """
     Parent type for snapshots.
     """
-    def __init__(self, last_snapshot: Self):
+    def __init__(self, last_snapshot: Self) -> None:
         """
-        :param last_snapshot: The snapshot before this one.
+        :param last_snapshot: The last snapshot (if this is a relative snapshot).
+        :type last_snapshot: Self
+        :rtype: None
         """
-        self._last_snapshot: Self | None = last_snapshot
+        self._excluded_from_serialization: list[str] = [
+            '_excluded_from_serialization',
+            'last_snapshot',
+        ]
+        self.last_snapshot: Self | None = last_snapshot
 
-        # Public attributes are pickled
-        self.is_relative: bool = self._last_snapshot is not None
+        self._last_snapshot_filename: str | None = None
+        self._last_snapshot_file_path: str | None = None
+        self.is_relative: bool = self.last_snapshot is not None
         self.filename: str | None = None
         self.file_path: str | None = None
-        self.last_snapshot_filename: str | None = None
-        self.last_snapshot_file_path: str | None = None
 
     def __getstate__(self) -> dict[str, Any]:
+        self.raise_if_unlinked_relative()
+
         attributes: dict[str, Any] = self.__dict__.copy()
-        return {i: attributes[i] for i in attributes if not i.startswith('_')}
+
+        # Save filename of last snapshot (if it exists)
+        if self.is_relative:
+            attributes['_last_snapshot_filename'] = self.last_snapshot.filename
+            attributes['_last_snapshot_file_path'] = self.last_snapshot.file_path
+
+        return {i: attributes[i] for i in attributes if i not in self._excluded_from_serialization}
 
     def __setstate__(self, state: dict[str, Any]) -> None:
+        self._last_snapshot_filename = None
+        self._last_snapshot_file_path = None
+
         self.__dict__.update(state)
 
-        # _last_snapshot is set in load_from_disk()
-        self._last_snapshot = None
+        # last_snapshot is set in load_from_file()
+        self.last_snapshot = None
 
     def __repr__(self) -> str:
-        if self.is_relative:
-            return f'<{type(self).__name__}(last_snapshot={self._last_snapshot}) at {hex(id(self))}>'
-        return f'<{type(self).__name__}(last_snapshot=None) at {hex(id(self))}>'
+        if self.last_snapshot is None:
+            if self.is_relative:
+                # Unlinked relative snapshot
+                return f'<{type(self).__name__}(last_snapshot=None,is_relative=True) at {hex(id(self))}>'
+            return f'<{type(self).__name__}(last_snapshot=None) at {hex(id(self))}>'
+        return f'<{type(self).__name__}(last_snapshot={self.last_snapshot}) at {hex(id(self))}>'
 
     def __str__(self) -> str:
         return repr(self)
@@ -220,18 +239,11 @@ class AbstractSnapshot(metaclass=ABCMeta):
         :return: The absolute snapshot.
         :rtype: Self
         """
+        self.raise_if_unlinked_relative()
+
         if self.is_relative:
-            return self.overlay(self._last_snapshot.resolve())
+            return self.overlay(self.last_snapshot.resolve())
         return self
-
-    def update_last_snapshot_filename(self) -> None:
-        """
-        Updates the ``last_snapshot_filename`` and ``last_snapshot_file_path`` attributes
-        of this snapshot.
-
-        :rtype: None
-        """
-        ... # TODO: Remove this function; instead, move its functionality to __getstate__, rename _last_snapshot to last_snapshot, add _excluded_from_serialization which includes 'last_snapshot', update __getstate__ and __setstate__ accordingly
 
     def save_to_file(self) -> str:
         """
@@ -240,6 +252,8 @@ class AbstractSnapshot(metaclass=ABCMeta):
         :return: The filename of the snapshot.
         :rtype: str
         """
+        self.raise_if_unlinked_relative()
+
         # Create snapshots directory
         if not os.path.isdir(SNAPSHOTS_DIR):
             os.mkdir(SNAPSHOTS_DIR)
@@ -249,13 +263,6 @@ class AbstractSnapshot(metaclass=ABCMeta):
         random_id: str = ''.join([random.choice('0123456789abcdef') for _ in range(8)])
         self.filename = f'{type(self).__name__}{"_relative" if self.is_relative else ""}_{local_time.tm_mon:02}-{local_time.tm_mday:02}-{local_time.tm_year:04}_{local_time.tm_hour:02}-{local_time.tm_min:02}-{local_time.tm_sec:02}_{random_id}.dat'
         self.file_path = os.path.abspath(os.path.join(SNAPSHOTS_DIR, self.filename))
-
-        # Save filename of last snapshot (if it exists)
-        self.last_snapshot_filename = None
-        self.last_snapshot_file_path = None
-        if self.is_relative:
-            self.last_snapshot_filename = self._last_snapshot.filename
-            self.last_snapshot_file_path = self._last_snapshot.file_path
 
         # Save snapshot to disk
         with open(self.file_path, 'wb') as f:
@@ -282,21 +289,49 @@ class AbstractSnapshot(metaclass=ABCMeta):
 
         # Load last snapshot
         if snapshot.is_relative:
-            if snapshot.last_snapshot_file_path is None:
+            if snapshot._last_snapshot_file_path is None:
                 raise RuntimeError('Attempted to load a relative snapshot file that doesn\'t contain the path to the previous snapshot file')
-            snapshot._last_snapshot = cls.load_from_file(snapshot.last_snapshot_file_path)
+            snapshot.last_snapshot = cls.load_from_file(snapshot._last_snapshot_file_path)
+
+        # Link relative subsnapshots
+        snapshot.link_relative_subsnapshots()
 
         return snapshot
+
+    def link_relative_subsnapshots(self) -> None:
+        """
+        Sets the ``last_snapshot`` attribute of all relative subsnapshots.
+        Should be overwritten by subclasses of ``AbstractSnapshot`` that serialize subsnapshots.
+
+        :rtype: None
+        """
+
+    def raise_if_unlinked_relative(self) -> None:
+        """
+        Raises a RuntimeError if this snapshot is set as relative, but is not linked to the last snapshot.
+
+        :rtype: None
+        """
+        if self.is_relative and self.last_snapshot is None:
+            raise RuntimeError('Unlinked relative snapshot')
 
 class JSONSnapshot(AbstractSnapshot):
     """
     A JSON response from an API.
     Might only include changes from the previous snapshot.
     """
-    def __init__(self, data: JSON | UnchangedJSONType = UnchangedJSON, failure_message: str | None = None, last_snapshot: JSONSnapshot | None = None):
+    def __init__(self, data: JSON | UnchangedJSONType = UnchangedJSON, failure_message: str | None = None, last_snapshot: JSONSnapshot | None = None) -> None:
+        """
+        :param data: The JSON response (can be None).
+        :type data: JSON | UnchangedJSONType
+        :param failure_message: Optional failure message.
+        :type failure_message: None
+        :param last_snapshot: The last snapshot (if this is a relative snapshot).
+        :type last_snapshot: JSONSnapshot | None
+        :rtype: None
+        """
         super().__init__(last_snapshot)
 
-        # Public attributes are pickled
         self.data: JSON | UnchangedJSONType = UnchangedJSON
         self.failure_message: str | None = failure_message
         self.timestamp: float = time.time()
@@ -306,7 +341,7 @@ class JSONSnapshot(AbstractSnapshot):
             return
 
         # Handle initial snapshot
-        if self._last_snapshot is None:
+        if self.last_snapshot is None:
             self.data = data
             return
 
@@ -314,18 +349,22 @@ class JSONSnapshot(AbstractSnapshot):
         self.data = json_difference(data, last_snapshot.data)
 
     def overlay(self, below: Self) -> Self:
+        below.raise_if_unlinked_relative()
+        self.raise_if_unlinked_relative()
         if below.is_relative:
             raise ValueError('"below" must be an absolute snapshot')
         if not self.is_relative:
             return self
 
         return JSONSnapshot(
-            data=json_reverse_difference(self._last_snapshot.data, self.data),
+            data=json_reverse_difference(self.last_snapshot.data, self.data),
             failure_message=self.failure_message,
             last_snapshot=None,
         )
 
     def difference(self, below: Self) -> Self:
+        below.raise_if_unlinked_relative()
+        self.raise_if_unlinked_relative()
         if below.is_relative:
             raise ValueError('"below" must be an absolute snapshot')
         if self.is_relative:
@@ -353,11 +392,12 @@ class DatabaseSnapshot(AbstractSnapshot):
     """
     def __init__(self, last_snapshot: DatabaseSnapshot | None = None) -> None:
         """
-        :param last_snapshot: The snapshot before this one.
+        :param last_snapshot: The last snapshot (if this is a relative snapshot).
+        :type last_snapshot: DatabaseSnapshot | None
+        :rtype: None
         """
         super().__init__(last_snapshot)
 
-        # Public attributes are pickled
         self.removed_users: set[str] = set()
         self.removed_projects: set[str] = set()
         self.general_data: JSONSnapshot | None = None
@@ -369,11 +409,13 @@ class DatabaseSnapshot(AbstractSnapshot):
 
         if self.is_relative:
             # noinspection PyUnresolvedReferences
-            self.removed_users = set(self._last_snapshot.user_profiles.keys())
+            self.removed_users = set(self.last_snapshot.user_profiles.keys())
             # noinspection PyUnresolvedReferences
-            self.removed_projects = set(self._last_snapshot.user_followers.keys())
+            self.removed_projects = set(self.last_snapshot.user_followers.keys())
 
     def overlay(self, below: Self) -> Self:
+        below.raise_if_unlinked_relative()
+        self.raise_if_unlinked_relative()
         if below.is_relative:
             raise ValueError('"below" must be an absolute snapshot')
         if not self.is_relative:
@@ -414,6 +456,8 @@ class DatabaseSnapshot(AbstractSnapshot):
         return composite
 
     def difference(self, below: Self) -> Self:
+        below.raise_if_unlinked_relative()
+        self.raise_if_unlinked_relative()
         if below.is_relative:
             raise ValueError('"below" must be an absolute snapshot')
         if self.is_relative:
@@ -435,6 +479,22 @@ class DatabaseSnapshot(AbstractSnapshot):
         difference.end_time = self.end_time
 
         return difference
+
+    def link_relative_subsnapshots(self) -> None:
+        if self.general_data.is_relative:
+            self.general_data.last_snapshot = self.last_snapshot.general_data
+
+        for user_id in self.user_profiles:
+            if self.user_profiles[user_id].is_relative:
+                self.user_profiles[user_id].last_snapshot = self.last_snapshot.user_profiles[user_id]
+
+        for user_id in self.user_followers:
+            if self.user_followers[user_id].is_relative:
+                self.user_followers[user_id].last_snapshot = self.last_snapshot.user_followers[user_id]
+
+        for project_id in self.projects:
+            if self.projects[project_id].is_relative:
+                self.projects[project_id].last_snapshot = self.last_snapshot.projects[project_id]
 
     def start(self) -> None:
         """
@@ -538,6 +598,7 @@ class DatabaseSnapshot(AbstractSnapshot):
         :type general_data: JSONSnapshot | None
         :rtype: None
         """
+        self.raise_if_unlinked_relative()
         self.raise_unless_active()
 
         if general_data is None:
@@ -553,7 +614,7 @@ class DatabaseSnapshot(AbstractSnapshot):
             return
 
         # Get last data snapshot
-        last_data: JSONSnapshot | None = self._last_snapshot.general_data
+        last_data: JSONSnapshot | None = self.last_snapshot.general_data
 
         # Save the difference between the snapshots
         if last_data is None:
@@ -572,6 +633,7 @@ class DatabaseSnapshot(AbstractSnapshot):
         :type user_profile: JSONSnapshot | None
         :rtype: None
         """
+        self.raise_if_unlinked_relative()
         self.raise_unless_active()
 
         if user_profile is None:
@@ -589,10 +651,10 @@ class DatabaseSnapshot(AbstractSnapshot):
             return
 
         # Get last profile snapshot if it exists
-        if user_id not in self._last_snapshot.user_profiles:
+        if user_id not in self.last_snapshot.user_profiles:
             self.user_profiles[user_id] = user_profile
             return
-        last_profile: JSONSnapshot | None = self._last_snapshot.user_profiles[user_id]
+        last_profile: JSONSnapshot | None = self.last_snapshot.user_profiles[user_id]
 
         # Save the difference between the snapshots
         if last_profile is None:
@@ -611,6 +673,7 @@ class DatabaseSnapshot(AbstractSnapshot):
         :type user_followers: JSONSnapshot | None
         :rtype: None
         """
+        self.raise_if_unlinked_relative()
         self.raise_unless_active()
 
         if user_followers is None:
@@ -628,10 +691,10 @@ class DatabaseSnapshot(AbstractSnapshot):
             return
 
         # Get last followers snapshot if it exists
-        if user_id not in self._last_snapshot.user_followers:
+        if user_id not in self.last_snapshot.user_followers:
             self.user_followers[user_id] = user_followers
             return
-        last_followers: JSONSnapshot | None = self._last_snapshot.user_followers[user_id]
+        last_followers: JSONSnapshot | None = self.last_snapshot.user_followers[user_id]
 
         # Save the difference between the snapshots
         if last_followers is None:
@@ -650,6 +713,7 @@ class DatabaseSnapshot(AbstractSnapshot):
         :type project: JSONSnapshot | None
         :rtype: None
         """
+        self.raise_if_unlinked_relative()
         self.raise_unless_active()
 
         if project is None:
@@ -667,10 +731,10 @@ class DatabaseSnapshot(AbstractSnapshot):
             return
 
         # Get last metadata snapshot if it exists
-        if project_id not in self._last_snapshot.projects:
+        if project_id not in self.last_snapshot.projects:
             self.projects[project_id] = project
             return
-        last_metadata: JSONSnapshot | None = self._last_snapshot.projects[project_id]
+        last_metadata: JSONSnapshot | None = self.last_snapshot.projects[project_id]
 
         # Save the difference between the snapshots
         if last_metadata is None:
