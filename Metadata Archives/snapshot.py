@@ -490,16 +490,19 @@ class MetadataSnapshot(AbstractSnapshot):
             self.general_data.last_snapshot = self.last_snapshot.general_data
 
         for user_id in self.user_profiles:
-            if self.user_profiles[user_id].is_relative:
-                self.user_profiles[user_id].last_snapshot = self.last_snapshot.user_profiles[user_id]
+            profile: JSONSnapshot | None = self.user_profiles[user_id]
+            if profile is not None and profile.is_relative:
+                profile.last_snapshot = self.last_snapshot.user_profiles[user_id]
 
         for user_id in self.user_followers:
-            if self.user_followers[user_id].is_relative:
-                self.user_followers[user_id].last_snapshot = self.last_snapshot.user_followers[user_id]
+            followers: JSONSnapshot | None = self.user_followers[user_id]
+            if followers is not None and followers.is_relative:
+                followers.last_snapshot = self.last_snapshot.user_followers[user_id]
 
         for project_id in self.projects:
-            if self.projects[project_id].is_relative:
-                self.projects[project_id].last_snapshot = self.last_snapshot.projects[project_id]
+            project: JSONSnapshot | None = self.projects[project_id]
+            if project is not None and project.is_relative:
+                project.last_snapshot = self.last_snapshot.projects[project_id]
 
     def start(self) -> None:
         """
