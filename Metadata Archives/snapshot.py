@@ -390,15 +390,15 @@ class JSONSnapshot(AbstractSnapshot):
         """
         self.timestamp = time.time()
 
-class DatabaseSnapshot(AbstractSnapshot):
+class MetadataSnapshot(AbstractSnapshot):
     """
     The state of the metadata for all users and projects at a given time.
     Might only include changes from the previous snapshot.
     """
-    def __init__(self, last_snapshot: DatabaseSnapshot | None = None) -> None:
+    def __init__(self, last_snapshot: MetadataSnapshot | None = None) -> None:
         """
         :param last_snapshot: The last snapshot (if this is a relative snapshot).
-        :type last_snapshot: DatabaseSnapshot | None
+        :type last_snapshot: MetadataSnapshot | None
         :rtype: None
         """
         super().__init__(last_snapshot)
@@ -426,7 +426,7 @@ class DatabaseSnapshot(AbstractSnapshot):
         if not self.is_relative:
             return self
 
-        composite = DatabaseSnapshot(last_snapshot=None)
+        composite = MetadataSnapshot(last_snapshot=None)
 
         composite.general_data = self.general_data
         if self.general_data is not None:
@@ -468,7 +468,7 @@ class DatabaseSnapshot(AbstractSnapshot):
         if self.is_relative:
             raise ValueError('"difference()" may only be called on absolute snapshots')
 
-        difference = DatabaseSnapshot(last_snapshot=below)
+        difference = MetadataSnapshot(last_snapshot=below)
 
         difference.add_general_data(self.general_data)
 
@@ -752,7 +752,7 @@ class DatabaseSnapshot(AbstractSnapshot):
 if __name__ == '__main__':
     input('Press ENTER to run the test.')
 
-    d = DatabaseSnapshot()
+    d = MetadataSnapshot()
     d.start()
     d.add_general_data(JSONSnapshot({
         'users': 3754,
@@ -776,7 +776,7 @@ if __name__ == '__main__':
     }))
     d.finish()
 
-    d2 = DatabaseSnapshot(last_snapshot=d)
+    d2 = MetadataSnapshot(last_snapshot=d)
     d2.start()
     d2.add_general_data(JSONSnapshot({
         'users': 3803,
