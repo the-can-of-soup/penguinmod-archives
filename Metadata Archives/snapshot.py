@@ -224,6 +224,15 @@ class AbstractSnapshot(metaclass=ABCMeta):
             return self.overlay(self._last_snapshot.resolve())
         return self
 
+    def update_last_snapshot_filename(self) -> None:
+        """
+        Updates the ``last_snapshot_filename`` and ``last_snapshot_file_path`` attributes
+        of this snapshot.
+
+        :rtype: None
+        """
+        ... # TODO: Remove this function; instead, move its functionality to __getstate__, rename _last_snapshot to last_snapshot, add _excluded_from_serialization which includes 'last_snapshot', update __getstate__ and __setstate__ accordingly
+
     def save_to_file(self) -> str:
         """
         Saves the snapshot to a file.
