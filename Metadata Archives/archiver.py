@@ -87,9 +87,11 @@ def main() -> None:
     print('STAGE 2: FIND USERNAMES')
     print('-----------------------')
 
-    progress_bar = tqdm.tqdm(total=user_count)
+    progress_bar = tqdm.tqdm(total=user_count, unit='users')
 
     user_page_count: int = math.ceil(user_count / EXPECTED_PAGE_SIZE)
+    # user_page_count: int = 5 # Testing
+
     for page_idx in range(user_page_count):
         response = fetch('GET', BASE_URL + '/api/v1/projects/searchusers',
             params={'page': page_idx, 'query': ''}, status_prefix='\033[4;1H\033[0K', # Line 4
@@ -103,13 +105,14 @@ def main() -> None:
         sys.stdout.write('\033[3;1H\033[0K') ; sys.stdout.flush() # Line 3
         progress_bar.update(len(response.data))
 
-        print('\033[5;1H\033[0JUsernames on last page: ' + (', '.join(page_usernames)))  # Line 5 (clear to end of screen)
+        print(f'\033[5;1H\033[0JUsernames on page {page_idx+1}: ' + (', '.join(page_usernames)))  # Line 5 (clear to end of screen)
 
         countdown(HEAVY_REQUEST_DELAY, prefix='\033[4;1H\033[0KWaiting... ') # Line 4
 
     sys.stdout.write('\033[3;1H\033[0K') ; sys.stdout.flush() # Line 3
     progress_bar.close()
 
+    # snapshot.save_to_file() # Testing
     input('TODO')
 
 if __name__ == '__main__':
