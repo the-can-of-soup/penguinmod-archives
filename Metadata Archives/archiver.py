@@ -163,6 +163,7 @@ def main() -> None:
 
     # snapshot.save_to_file() # Testing
     input('TODO')
+    # snapshot.finish()
 
 if __name__ == '__main__':
     try:
