@@ -453,6 +453,8 @@ class MetadataSnapshot(AbstractSnapshot):
         for user_id in self.user_profiles:
             if user_id not in below.user_profiles:
                 composite.user_profiles[user_id] = self.user_profiles[user_id]
+            elif self.user_profiles[user_id] is None:
+                continue
             else:
                 composite.user_profiles[user_id] = self.user_profiles[user_id].overlay(below.user_profiles[user_id])
 
@@ -460,6 +462,8 @@ class MetadataSnapshot(AbstractSnapshot):
         for user_id in self.user_followers:
             if user_id not in below.user_followers:
                 composite.user_followers[user_id] = self.user_followers[user_id]
+            elif self.user_followers[user_id] is None:
+                continue
             else:
                 composite.user_followers[user_id] = self.user_followers[user_id].overlay(below.user_followers[user_id])
 
@@ -467,6 +471,8 @@ class MetadataSnapshot(AbstractSnapshot):
         for project_id in self.projects:
             if project_id not in below.projects:
                 composite.projects[project_id] = self.projects[project_id]
+            elif self.projects[project_id] is None:
+                continue
             else:
                 composite.projects[project_id] = self.projects[project_id].overlay(below.projects[project_id])
 
