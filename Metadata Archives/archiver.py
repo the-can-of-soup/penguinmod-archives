@@ -18,18 +18,18 @@ EXPECTED_PAGE_SIZE: int = 20 # Page size used in search APIs
 
 # APIS USED BY THIS PROGRAM
 #
-# - /api/v1/misc/getStats
-# - /api/v1/projects/searchusers?query=&page=<PAGE_INDEX>
-# - /api/v1/users/profile?target=<USERNAME>
-#   - HTTP 404 {"error": "NotFound"} if user doesn't exist or is banned
-#   - HTTP 200 {"success": false, ...} if profile is private
-# - /api/v1/users/meta/getfollowers?username=<USERNAME>&page=<PAGE_INDEX>
-#   - HTTP 404 {"error": "User not found"} if user doesn't exist or is banned
-# - /api/v1/projects/getprojectsbyauthor?authorUsername=<USERNAME>&page=<PAGE_INDEX>
-#   - HTTP 404 {"error": "User not found"} if user doesn't exist or is banned
-#   - HTTP 403 {"error": "PrivateProfile"} if user's profile is set to private
-# - /api/v1/projects/getproject?requestType=metadata&projectID=<PROJECT_ID>
-#   - HTTP 404 {"error": "Project not found"} if project doesn't exist or is not public
+# 1. /api/v1/misc/getStats
+# 2. /api/v1/projects/searchusers?query=&page=<PAGE_INDEX>
+# 3. /api/v1/users/profile?target=<USERNAME>
+#    - HTTP 404 {"error": "NotFound"} if user doesn't exist or is banned
+#    - HTTP 200 {"success": false, ...} if profile is private
+# 4. /api/v1/users/meta/getfollowers?username=<USERNAME>&page=<PAGE_INDEX>
+#    - HTTP 404 {"error": "User not found"} if user doesn't exist or is banned
+# 5. /api/v1/projects/getprojectsbyauthor?authorUsername=<USERNAME>&page=<PAGE_INDEX>
+#    - HTTP 404 {"error": "User not found"} if user doesn't exist or is banned
+#    - HTTP 403 {"error": "PrivateProfile"} if user's profile is set to private
+# 6. /api/v1/projects/getproject?requestType=metadata&projectID=<PROJECT_ID>
+#    - HTTP 404 {"error": "Project not found"} if project doesn't exist or is not public
 
 def fetch(
         method: str, url: str, params: dict[str, str] | None = None, data: dict[str, Any] | None = None,
