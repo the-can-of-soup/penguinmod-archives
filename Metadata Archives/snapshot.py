@@ -502,7 +502,7 @@ class MetadataSnapshot(AbstractSnapshot):
         for user_id in self.user_followers:
             difference.add_user_followers(user_id, self.user_followers[user_id])
         for project_id in self.projects:
-            difference.add_project(project_id, self.projects[project_id])
+            difference.add_project_metadata(project_id, self.projects[project_id])
 
         # The relative snapshot is just as accurate as the newer snapshot, so it uses its timestamps
         difference.start_time = self.start_time
@@ -756,7 +756,7 @@ class MetadataSnapshot(AbstractSnapshot):
             return
         self.user_followers[user_id] = user_followers.difference(last_followers)
 
-    def add_project(self, project_id: str, project: JSONSnapshot | None) -> None:
+    def add_project_metadata(self, project_id: str, project: JSONSnapshot | None) -> None:
         """
         Adds a project's metadata to the database snapshot.
         Make sure to call ``add_project_id()`` first.
