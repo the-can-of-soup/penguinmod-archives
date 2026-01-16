@@ -15,6 +15,15 @@ MAX_SIMULTANEOUS_LIGHT_REQUESTS: int = 4
 HEAVY_REQUEST_DELAY: float = 10.0
 EXPECTED_PAGE_SIZE: int = 20 # Page size used in search APIs
 
+# APIS USED BY THIS PROGRAM
+#
+# - /api/v1/misc/getStats
+# - /api/v1/projects/searchusers?query=&page=<PAGE_INDEX>
+# - /api/v1/users/profile?target=<USERNAME>
+# - /api/v1/users/meta/getfollowers?username=<USERNAME>&page=<PAGE_INDEX>
+# - /api/v1/projects/searchprojects?type=newest&reverse=true&query=&page=<PAGE_INDEX>
+# - /api/v1/projects/getproject?requestType=metadata&projectID=<PROJECT_ID>
+
 def fetch(method: str, url: str, params: dict[str, str] | None = None, data: dict[str, Any] | None = None,
           max_retries: int = 5, initial_retry_delay: float = 1.0, backoff_factor: float = 1.7, critical: bool = False,
           status_prefix: str = '') -> JSONSnapshot:
