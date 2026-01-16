@@ -10,7 +10,7 @@ import os
 
 SNAPSHOTS_DIR: str = 'snapshots'
 
-JSON = Union[dict, list, str, float, bool, None]
+JSON = Union[dict[str, Any], list[Any], str, float, bool, None]
 
 class AbstractSingleton(metaclass=ABCMeta):
     """
