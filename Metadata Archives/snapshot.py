@@ -325,12 +325,15 @@ class JSONSnapshot(AbstractSnapshot):
     A JSON response from an API.
     Might only include changes from the previous snapshot.
     """
-    def __init__(self, data: JSON | UnchangedJSONType = None, failure_message: str | None = None, last_snapshot: JSONSnapshot | None = None) -> None:
+    def __init__(self, data: JSON | UnchangedJSONType = None, failure_message: str | None = None,
+                 timestamp_override: float | None = None, last_snapshot: JSONSnapshot | None = None) -> None:
         """
         :param data: The JSON response (can be None).
         :type data: JSON | UnchangedJSONType
         :param failure_message: Optional failure message.
         :type failure_message: None
+        :param timestamp_override: Optional override for timestamp. If ommitted, will use the current timestamp.
+        :type timestamp_override: float | None
         :param last_snapshot: The last snapshot (if this is a relative snapshot).
         :type last_snapshot: JSONSnapshot | None
         :rtype: None
@@ -339,7 +342,7 @@ class JSONSnapshot(AbstractSnapshot):
 
         self.data: JSON | UnchangedJSONType = UnchangedJSON
         self.failure_message: str | None = failure_message
-        self.timestamp: float = time.time()
+        self.timestamp: float = time.time() if timestamp_override is None else timestamp_override
 
         # Handle failed snapshots
         if self.failure_message is not None:
@@ -487,7 +490,7 @@ class MetadataSnapshot(AbstractSnapshot):
         difference.add_general_data(self.general_data)
 
         for user_id in self.usernames:
-            difference.add_user(user_id, self.usernames[user_id].data)
+            difference.add_user(user_id, self.usernames[user_id])
         for user_id in self.user_profiles:
             difference.add_user_profile(user_id, self.user_profiles[user_id])
         for user_id in self.user_followers:
@@ -576,26 +579,28 @@ class MetadataSnapshot(AbstractSnapshot):
             if self.projects[project_id] is None:
                 del self.projects[project_id]
 
-    def add_user(self, user_id: str, username: str) -> None:
+    def add_user(self, user_id: str, username_snapshot: JSONSnapshot) -> None:
         """
         Adds a user ID and username to the database snapshot.
         If the ID was already in the list, moves it to the end.
 
         :param user_id: The ID of the user.
         :type user_id: str
-        :param username: The user's username (lowercase).
-        :type username: str
+        :param username_snapshot: Snapshot of the user's username (lowercase).
+        :type username_snapshot: JSONSnapshot
         :rtype: None
         """
         self.raise_if_unlinked_relative()
         self.raise_unless_active()
+
+        if username_snapshot.is_relative:
+            raise ValueError('"username_snapshot" must be an absolute snapshot')
 
         # Remove from removed_users set
         if user_id in self.removed_users:
             self.removed_users.remove(user_id)
 
         # Add entry to usernames
-        username_snapshot = JSONSnapshot(username)
         if (not self.is_relative) or (user_id not in self.last_snapshot.usernames):
             self.usernames[user_id] = username_snapshot
         else:
@@ -797,7 +802,7 @@ if __name__ == '__main__':
         'projects': 9237,
         'someotherstuff': 'idk',
     }))
-    d.add_user('imaginaryuserid', 'idkman')
+    d.add_user('imaginaryuserid', JSONSnapshot('idkman'))
     d.add_user_profile('imaginaryuserid', JSONSnapshot({
         'username': 'idkman',
         'real_username': 'istilldkman',
@@ -805,7 +810,7 @@ if __name__ == '__main__':
         'badges': ['epic', 'sus', 'soupfan'],
         'icant': 'remembertheotherkeys',
     }))
-    d.add_user('userthatwillbedeleted', 'goodbye')
+    d.add_user('userthatwillbedeleted', JSONSnapshot('goodbye'))
     d.add_user_profile('userthatwillbedeleted', JSONSnapshot({
         'username': 'goodbye',
         'real_username': 'Goodbye',
@@ -821,7 +826,7 @@ if __name__ == '__main__':
         'projects': 9446,
         'someotherstuff': 'idk',
     }))
-    d2.add_user('imaginaryuserid', 'idkman')
+    d2.add_user('imaginaryuserid', JSONSnapshot('idkman'))
     d2.add_user_profile('imaginaryuserid', JSONSnapshot({
         'username': 'idkman',
         'real_username': 'istilldkman',

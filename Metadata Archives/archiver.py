@@ -148,7 +148,7 @@ def main() -> None:
 
         page_usernames: list[str] = []
         for user in response.data:
-            snapshot.add_user(user['id'], user['username'])
+            snapshot.add_user(user['id'], JSONSnapshot(user['username'], timestamp_override=response.timestamp))
             page_usernames.append(user['username'])
 
         sys.stdout.write('\033[3;1H\033[0K') ; sys.stdout.flush() # Line 3
