@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from snapshot import JSONSnapshot, MetadataSnapshot
-from typing import Any
+from snapshot import JSONSnapshot, MetadataSnapshot, JSON
+from typing import Any, Callable
 import threading
 import traceback
 import requests
+import keyboard
 import tqdm
 import time
 import math
@@ -30,9 +31,37 @@ EXPECTED_PAGE_SIZE: int = 20 # Page size used in search APIs
 # - /api/v1/projects/getproject?requestType=metadata&projectID=<PROJECT_ID>
 #   - HTTP 404 {"error": "Project not found"} if project doesn't exist or is not public
 
-def fetch(method: str, url: str, params: dict[str, str] | None = None, data: dict[str, Any] | None = None,
-          max_retries: int = 5, initial_retry_delay: float = 1.0, backoff_factor: float = 1.7, critical: bool = False,
-          status_prefix: str = '') -> JSONSnapshot:
+def fetch(
+        method: str, url: str, params: dict[str, str] | None = None, data: dict[str, Any] | None = None,
+        max_retries: int = 5, initial_retry_delay: float = 1.0, backoff_factor: float = 1.7, critical: bool = False,
+        status_prefix: str = '',
+        validator: Callable[[requests.Response, JSON], None] = lambda response, snapshot: response.raise_for_status(),
+    ) -> JSONSnapshot:
+    """
+    Fetches from an HTTP JSON API.
+
+    :param method: The request method.
+    :type method: str
+    :param url: The request URL.
+    :type url: str
+    :param params: URL parameters for the request.
+    :type params: dict[str, str] | None
+    :param data: JSON POST data for the request.
+    :type data: dict[str, Any] | None
+    :param max_retries: The maximum number of times to retry the fetch.
+    :type max_retries: int
+    :param initial_retry_delay: The delay between the first attempt failing and starting a second attempt.
+    :type initial_retry_delay: float
+    :param backoff_factor: The factor to multiply the retry delay by on each subsequent attempt.
+    :type backoff_factor: float
+    :param critical: If True, failing all retries will wait for a user input and then try all over again, instead of returning.
+    :type critical: bool
+    :param status_prefix: String to be prepended to every status update written to standard output.
+    :type status_prefix: str
+    :param validator: Function that should accept a ``requests.Response`` object and JSON from an attempt response and raise ``requests.exceptions.RequestException`` if the attempt should be considered "failed". If ommitted, the default validator will raise if the response status code was not success.
+    :type validator: Callable[[requests.Response, JSON], None]
+    :return:
+    """
     response: requests.Response
     last_exception: Exception = RuntimeError('Did not attempt fetch')
 
@@ -47,9 +76,10 @@ def fetch(method: str, url: str, params: dict[str, str] | None = None, data: dic
         # Send request
         try:
             response = requests.request(method, url, params=params, json=data)
-            response.raise_for_status()
-            return JSONSnapshot(response.json())
-        except requests.RequestException as exc:
+            json_data = response.json()
+            validator(response, json_data)
+            return JSONSnapshot(json_data)
+        except requests.exceptions.RequestException as exc:
             last_exception = exc
 
         # Exponential backoff
@@ -58,7 +88,11 @@ def fetch(method: str, url: str, params: dict[str, str] | None = None, data: dic
             countdown(delay, prefix=status_prefix + 'Retrying in ', suffix=' seconds...')
 
         if critical:
-            input(status_prefix + f'Fetch failed max of {max_retries+1} times with error:\n{type(last_exception).__name__}: {last_exception}\nPress ENTER to try again.')
+            # input(status_prefix + f'Fetch failed max of {max_retries+1} times with error:\n{type(last_exception).__name__}: {last_exception}\nPress ENTER to try again.')
+            # input(status_prefix + f'Fetch failed max of {max_retries+1} times; press ENTER to try again.')
+            sys.stdout.write(status_prefix + f'Fetch failed max of {max_retries+1} times; press [Q+M] to try again.')
+            sys.stdout.flush()
+            keyboard.wait('Q+M')
         else:
             i += 1
 
@@ -102,7 +136,7 @@ def main() -> None:
     print('STAGE 2: FIND USERNAMES')
     print('-----------------------')
 
-    progress_bar = tqdm.tqdm(total=user_count, unit='users')
+    progress_bar = tqdm.tqdm(total=user_count, unit='user', desc='Progress:')
 
     user_page_count: int = math.ceil(user_count / EXPECTED_PAGE_SIZE)
     # user_page_count: int = 5 # Testing

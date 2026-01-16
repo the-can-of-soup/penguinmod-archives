@@ -1,2 +1,3 @@
 requests~=2.32.3
 tqdm~=4.67.1
+keyboard~=0.13.5
