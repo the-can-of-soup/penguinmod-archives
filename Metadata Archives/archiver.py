@@ -120,8 +120,8 @@ def main() -> None:
     # STAGE 1: GENERAL DATA
 
     print('\033[2J\033[3J\033[H', end='') # Clear terminal
-    print('STAGE 1: GENERAL DATA')
-    print('---------------------')
+    print('STAGE 1/6: GENERAL DATA')
+    print('-----------------------')
 
     general_data: JSONSnapshot = fetch('GET', BASE_URL + '/api/v1/misc/getStats',
         critical=True, status_prefix='\033[3;1H\033[0J') # Line 3 (clear to end of screen)
@@ -133,8 +133,8 @@ def main() -> None:
     # STAGE 2: FIND USERNAMES
 
     print('\033[2J\033[3J\033[H', end='') # Clear terminal
-    print('STAGE 2: FIND USERNAMES')
-    print('-----------------------')
+    print('STAGE 2/6: FIND USERNAMES')
+    print('-------------------------')
 
     progress_bar = tqdm.tqdm(total=user_count, unit='user', desc='Progress:')
 
@@ -148,7 +148,7 @@ def main() -> None:
 
         page_usernames: list[str] = []
         for user in response.data:
-            snapshot.add_user_id(user['id'])
+            snapshot.add_user(user['id'], user['username'])
             page_usernames.append(user['username'])
 
         sys.stdout.write('\033[3;1H\033[0K') ; sys.stdout.flush() # Line 3

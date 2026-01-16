@@ -361,11 +361,14 @@ class JSONSnapshot(AbstractSnapshot):
         if not self.is_relative:
             return self
 
-        return JSONSnapshot(
+        result = JSONSnapshot(
             data=json_reverse_difference(self.last_snapshot.data, self.data),
             failure_message=self.failure_message,
             last_snapshot=None,
         )
+        result.timestamp = self.timestamp
+
+        return result
 
     def difference(self, below: Self) -> Self:
         below.raise_if_unlinked_relative()
@@ -375,11 +378,14 @@ class JSONSnapshot(AbstractSnapshot):
         if self.is_relative:
             raise ValueError('"difference()" may only be called on absolute snapshots')
 
-        return JSONSnapshot(
+        result = JSONSnapshot(
             data=self.data,
             failure_message=self.failure_message,
             last_snapshot=below,
         )
+        result.timestamp = self.timestamp
+
+        return result
 
     def set_time(self) -> None:
         """
@@ -406,6 +412,7 @@ class MetadataSnapshot(AbstractSnapshot):
         self.removed_users: set[str] = set()
         self.removed_projects: set[str] = set()
         self.general_data: JSONSnapshot | None = None
+        self.usernames: OrderedDict[str, JSONSnapshot] = OrderedDict()
         self.user_profiles: OrderedDict[str, JSONSnapshot | None] = OrderedDict()
         self.user_followers: OrderedDict[str, JSONSnapshot | None] = OrderedDict()
         self.projects: OrderedDict[str, JSONSnapshot | None] = OrderedDict()
@@ -431,6 +438,13 @@ class MetadataSnapshot(AbstractSnapshot):
         composite.general_data = self.general_data
         if self.general_data is not None:
             composite.general_data = self.general_data.overlay(below.general_data)
+
+        composite.usernames = below.usernames
+        for user_id in self.usernames:
+            if user_id not in below.usernames:
+                composite.usernames[user_id] = self.usernames[user_id]
+            else:
+                composite.usernames[user_id] = self.usernames[user_id].overlay(below.usernames[user_id])
 
         composite.user_profiles = below.user_profiles
         for user_id in self.user_profiles:
@@ -472,6 +486,8 @@ class MetadataSnapshot(AbstractSnapshot):
 
         difference.add_general_data(self.general_data)
 
+        for user_id in self.usernames:
+            difference.add_user(user_id, self.usernames[user_id].data)
         for user_id in self.user_profiles:
             difference.add_user_profile(user_id, self.user_profiles[user_id])
         for user_id in self.user_followers:
@@ -488,6 +504,11 @@ class MetadataSnapshot(AbstractSnapshot):
     def link_relative_subsnapshots(self) -> None:
         if self.general_data.is_relative:
             self.general_data.last_snapshot = self.last_snapshot.general_data
+
+        for user_id in self.usernames:
+            username_snapshot: JSONSnapshot = self.usernames[user_id]
+            if username_snapshot.is_relative:
+                username_snapshot.last_snapshot = self.last_snapshot.usernames[user_id]
 
         for user_id in self.user_profiles:
             profile: JSONSnapshot | None = self.user_profiles[user_id]
@@ -555,25 +576,39 @@ class MetadataSnapshot(AbstractSnapshot):
             if self.projects[project_id] is None:
                 del self.projects[project_id]
 
-    def add_user_id(self, user_id: str) -> None:
+    def add_user(self, user_id: str, username: str) -> None:
         """
-        Adds a user ID to the database snapshot.
+        Adds a user ID and username to the database snapshot.
         If the ID was already in the list, moves it to the end.
 
         :param user_id: The ID of the user.
         :type user_id: str
+        :param username: The user's username (lowercase).
+        :type username: str
         :rtype: None
         """
+        self.raise_if_unlinked_relative()
         self.raise_unless_active()
 
+        # Remove from removed_users set
         if user_id in self.removed_users:
             self.removed_users.remove(user_id)
 
+        # Add entry to usernames
+        username_snapshot = JSONSnapshot(username)
+        if (not self.is_relative) or (user_id not in self.last_snapshot.usernames):
+            self.usernames[user_id] = username_snapshot
+        else:
+            self.usernames[user_id] = username_snapshot.difference(self.last_snapshot.usernames[user_id])
+        self.usernames.move_to_end(user_id)
+
+        # Add blank entry to user_profiles
         if user_id not in self.user_profiles:
             self.user_profiles[user_id] = None
         else:
             self.user_profiles.move_to_end(user_id)
 
+        # Add blank entry to user_followers
         if user_id not in self.user_followers:
             self.user_followers[user_id] = None
         else:
@@ -762,7 +797,7 @@ if __name__ == '__main__':
         'projects': 9237,
         'someotherstuff': 'idk',
     }))
-    d.add_user_id('imaginaryuserid')
+    d.add_user('imaginaryuserid', 'idkman')
     d.add_user_profile('imaginaryuserid', JSONSnapshot({
         'username': 'idkman',
         'real_username': 'istilldkman',
@@ -770,7 +805,7 @@ if __name__ == '__main__':
         'badges': ['epic', 'sus', 'soupfan'],
         'icant': 'remembertheotherkeys',
     }))
-    d.add_user_id('userthatwillbedeleted')
+    d.add_user('userthatwillbedeleted', 'goodbye')
     d.add_user_profile('userthatwillbedeleted', JSONSnapshot({
         'username': 'goodbye',
         'real_username': 'Goodbye',
@@ -786,7 +821,7 @@ if __name__ == '__main__':
         'projects': 9446,
         'someotherstuff': 'idk',
     }))
-    d2.add_user_id('imaginaryuserid')
+    d2.add_user('imaginaryuserid', 'idkman')
     d2.add_user_profile('imaginaryuserid', JSONSnapshot({
         'username': 'idkman',
         'real_username': 'istilldkman',
