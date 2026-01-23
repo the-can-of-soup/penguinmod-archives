@@ -18,17 +18,17 @@ EXPECTED_PAGE_SIZE: int = 20 # Page size used in search APIs
 
 # APIS USED BY THIS PROGRAM
 #
-# 1. /api/v1/misc/getStats
-# 2. /api/v1/projects/searchusers?query=&page=<PAGE_INDEX>
-# 3. /api/v1/users/profile?target=<USERNAME>
+# 1. GET /api/v1/misc/getStats
+# 2. GET /api/v1/projects/searchusers?query=&page=<PAGE_INDEX>
+# 3. GET /api/v1/users/profile?target=<USERNAME>
 #    - HTTP 404 {"error": "NotFound"} if user doesn't exist or is banned
 #    - HTTP 200 {"success": false, ...} if profile is private
-# 4. /api/v1/users/meta/getfollowers?username=<USERNAME>&page=<PAGE_INDEX>
+# 4. GET /api/v1/users/meta/getfollowers?username=<USERNAME>&page=<PAGE_INDEX>
 #    - HTTP 404 {"error": "User not found"} if user doesn't exist or is banned
-# 5. /api/v1/projects/getprojectsbyauthor?authorUsername=<USERNAME>&page=<PAGE_INDEX>
+# 5. GET /api/v1/projects/getprojectsbyauthor?authorUsername=<USERNAME>&page=<PAGE_INDEX>
 #    - HTTP 404 {"error": "User not found"} if user doesn't exist or is banned
 #    - HTTP 403 {"error": "PrivateProfile"} if user's profile is set to private
-# 6. /api/v1/projects/getproject?requestType=metadata&projectID=<PROJECT_ID>
+# 6. GET /api/v1/projects/getproject?requestType=metadata&projectID=<PROJECT_ID>
 #    - HTTP 404 {"error": "Project not found"} if project doesn't exist or is not public
 
 def fetch(
@@ -142,9 +142,12 @@ def main() -> None:
     # user_page_count: int = 5 # Testing
 
     for page_idx in range(user_page_count):
-        response = fetch('GET', BASE_URL + '/api/v1/projects/searchusers',
+        response = fetch(
+            'GET', BASE_URL + '/api/v1/projects/searchusers',
             params={'page': page_idx, 'query': ''}, status_prefix='\033[4;1H\033[0K', # Line 4
-            max_retries=3, initial_retry_delay=10.0, backoff_factor=1.5, critical=True)
+            max_retries=3, initial_retry_delay=HEAVY_REQUEST_DELAY, backoff_factor=1.5,
+            critical=True,
+        )
 
         page_usernames: list[str] = []
         for user in response.data:
@@ -160,6 +163,38 @@ def main() -> None:
 
     sys.stdout.write('\033[3;1H\033[0K') ; sys.stdout.flush() # Line 3
     progress_bar.close()
+
+    # STAGE 3: USER PROFILES
+    # TODO: implement multiple simultaneous requests
+
+    print('\033[2J\033[3J\033[H', end='')  # Clear terminal
+    print('STAGE 3/6: USER PROFILES')
+    print('------------------------')
+
+    progress_bar = tqdm.tqdm(total=user_count, unit='user', desc='Progress:')
+
+    def stage_3_validator(response: requests.Response, json_data: JSON) -> None:
+        if response.status_code == 404:
+            return # User doesn't exist or is banned; not a fetching error
+        response.raise_for_status()
+
+    user_idx: int = 0
+    for user_id in snapshot.usernames:
+        username: str = snapshot.usernames[user_id].data
+
+        response = fetch(
+            'GET', BASE_URL + '/api/v1/users/profile',
+            params={'target': username}, status_prefix='\033[4;1H\033[0K', # Line 4
+            validator=stage_3_validator, critical=True, # Not actually critical, but I want to capture every user
+        )
+        snapshot.add_user_profile(user_id, response)
+
+        sys.stdout.write('\033[3;1H\033[0K') ; sys.stdout.flush() # Line 3
+        progress_bar.update(1)
+
+        print(f'\033[5;1H\033[0JFetched profile of user {user_idx+1} ({username})') # Line 5 (clear to end of screen)
+
+        user_idx += 1
 
     # snapshot.save_to_file() # Testing
     input('TODO')
