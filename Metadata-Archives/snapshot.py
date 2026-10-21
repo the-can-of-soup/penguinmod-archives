@@ -518,10 +518,10 @@ class MetadataSnapshot(AbstractSnapshot):
         self.removed_users: set[str] = set()
         self.removed_projects: set[str] = set()
         self.general_data: JSONSnapshot | None = None
-        self.usernames: OrderedDict[str, JSONSnapshot] = OrderedDict() # Maps user IDs to JSON snapshots of usernames
-        self.user_profiles: OrderedDict[str, JSONSnapshot | None] = OrderedDict()
-        self.user_followers: OrderedDict[str, JSONSnapshot | None] = OrderedDict()
-        self.projects: OrderedDict[str, JSONSnapshot | None] = OrderedDict()
+        self.usernames: OrderedDict[str, JSONSnapshot] = OrderedDict() # Maps user IDs to snapshots of usernames
+        self.user_profiles: OrderedDict[str, JSONSnapshot | None] = OrderedDict() # Maps user IDs to snapshots of user profiles
+        self.user_followers: OrderedDict[str, JSONSnapshot | None] = OrderedDict() # Maps user IDs to snapshots of follower lists
+        self.projects: OrderedDict[str, JSONSnapshot | None] = OrderedDict() # Maps project IDs to snapshots of project metadata
         self.start_time: float | None = None
         self.end_time: float | None = None
 
