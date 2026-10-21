@@ -196,8 +196,8 @@ def main() -> None:
             page_usernames.append(user['username'])
 
         # Line 3
-        sys.stdout.write('\033[3;1H\033[0K')
-        progress_bar.update(len(response.data)) ; sys.stdout.flush()
+        sys.stdout.write('\033[3;1H\033[0K') ; sys.stdout.flush()
+        progress_bar.update(len(response.data))
 
         # Line 5 (clear to end of screen)
         if len(response.data) > 0:
@@ -209,16 +209,16 @@ def main() -> None:
         countdown(HEAVY_REQUEST_DELAY, prefix='\033[4;1H\033[0KWaiting... ')
 
         # TODO: remove testing
-        if page_idx >= 1:
-            break
+        # if page_idx >= 1:
+        #     break
 
         if len(response.data) == 0:
             break
         page_idx += 1
 
     # Line 3
-    sys.stdout.write('\033[3;1H\033[0K')
-    progress_bar.close() ; sys.stdout.flush()
+    sys.stdout.write('\033[3;1H\033[0K') ; sys.stdout.flush()
+    progress_bar.close()
 
 
     # noinspection unused-parameter
@@ -269,15 +269,15 @@ def main() -> None:
             )
 
         # Line 3
-        sys.stdout.write('\033[3;1H\033[0K')
-        progress_bar.update(1) ; sys.stdout.flush()
+        sys.stdout.write('\033[3;1H\033[0K') ; sys.stdout.flush()
+        progress_bar.update(1)
 
         # Line 5 (clear to end of screen)
         print(f'\033[5;1H\033[0JFetched profile of user {username} ({user_id})')
 
     # Line 3
-    sys.stdout.write('\033[3;1H\033[0K')
-    progress_bar.close() ; sys.stdout.flush()
+    sys.stdout.write('\033[3;1H\033[0K') ; sys.stdout.flush()
+    progress_bar.close()
 
 
     # STAGE 4: FOLLOWERS
@@ -326,8 +326,8 @@ def main() -> None:
                 break
 
             # Line 3
-            sys.stdout.write('\033[3;1H\033[0K')
-            progress_bar.update(1) ; sys.stdout.flush()
+            sys.stdout.write('\033[3;1H\033[0K') ; sys.stdout.flush()
+            progress_bar.update(1)
 
             # Line 6 (clear to end of screen)
             print(f'\033[6;1H\033[0JFollowers of {username} page {page_idx+1}/{follower_page_count_str}:'
@@ -339,8 +339,8 @@ def main() -> None:
             snapshot.add_user_followers(user_id, JSONSnapshot(followers))
 
     # Line 3
-    sys.stdout.write('\033[3;1H\033[0K')
-    progress_bar.close() ; sys.stdout.flush()
+    sys.stdout.write('\033[3;1H\033[0K') ; sys.stdout.flush()
+    progress_bar.close()
 
 
     # STAGE 5: PROJECT METADATA
@@ -382,8 +382,8 @@ def main() -> None:
                 break
 
             # Line 3
-            sys.stdout.write('\033[3;1H\033[0K')
-            progress_bar.update(len(response.data)) ; sys.stdout.flush()
+            sys.stdout.write('\033[3;1H\033[0K') ; sys.stdout.flush()
+            progress_bar.update(len(response.data))
 
             # Line 6 (clear to end of screen)
             print(f'\033[6;1H\033[0J{len(response.data)} project{"" if len(response.data) == 1 else "s"} on {username} page {page_idx+1}')
@@ -391,8 +391,8 @@ def main() -> None:
             page_idx += 1
 
     # Line 3
-    sys.stdout.write('\033[3;1H\033[0K')
-    progress_bar.close() ; sys.stdout.flush()
+    sys.stdout.write('\033[3;1H\033[0K') ; sys.stdout.flush()
+    progress_bar.close()
 
 
     # END
