@@ -1,16 +1,26 @@
+# IMPORTS
+
 from __future__ import annotations
 
 from abc import abstractmethod, ABCMeta
-from typing import Any, Union, Self
 from collections import OrderedDict
+from typing import Any, Self
+import itertools
 import random
 import pickle
 import time
 import os
 
+
+
+# CONSTANTS
+
 SNAPSHOTS_DIR: str = 'snapshots'
 
-JSON = Union[dict[str, Any], list[Any], str, float, bool, None]
+
+
+# DEFINITIONS
+
 
 class AbstractSingleton(metaclass=ABCMeta):
     """
@@ -21,6 +31,8 @@ class AbstractSingleton(metaclass=ABCMeta):
     def __new__(cls, *args, **kwargs) -> Self:
         if cls._instance is None:
             cls._instance = super().__new__(cls)
+
+        assert cls._instance is not None
         return cls._instance
 
     def __repr__(self) -> str:
@@ -38,128 +50,208 @@ class AbstractSingleton(metaclass=ABCMeta):
         :rtype: str
         """
 
+
 class UnchangedJSONType(AbstractSingleton):
     """
-    Type for UnchangedJSON singleton.
+    Type for UnchangedJSON singleton. Represents the difference between two identical
+    JSON structures.
     """
     def singleton_name(self) -> str:
         return 'UnchangedJSON'
 
 UnchangedJSON = UnchangedJSONType()
 
+
 class DeletedKeyType(AbstractSingleton):
     """
-    Type for DeletedKey singleton.
+    Type for DeletedKey singleton. Represents a key that was deleted in a difference
+    between two JSON structures.
     """
     def singleton_name(self) -> str:
         return 'DeletedKey'
 
 DeletedKey = DeletedKeyType()
 
-def json_difference(new: JSON, old: JSON) -> JSON | UnchangedJSONType:
+
+class NoSlotType(AbstractSingleton):
+    """
+    Type for NoSlot singleton. Internally represents a list item that does not exist in
+    the older of two JSON structures, but does in the newer.
+    """
+    def singleton_name(self) -> str:
+        return 'NoSlot'
+
+NoSlot = NoSlotType()
+
+
+type JSON = (
+    dict[str, JSON] | list[JSON]
+        | str | float | bool | None
+)
+type JSONDifference = (
+    dict[str, JSONDifference | DeletedKeyType] | list[JSONDifference]
+        | str | float | bool | None | UnchangedJSONType
+)
+
+
+def json_difference(new: JSON, old: JSON) -> JSONDifference:
     """
     Returns the difference between two JSON values.
     This is used to optimize storing revisions.
 
-    This process is not commutative.
+    This process is noncommutative.
 
     :param new: The newer JSON value.
     :type new: JSON
     :param old: The older JSON value.
     :type old: JSON
-    :return: The difference between the values.
-    :rtype: JSON | UnchangedJSONType
+    :return: The difference between the values. The UnchangedJSON singleton may replace
+        values at any depth of the returned object to represent sub-JSON that was
+        unchanged from ``old`` to ``new``. Keys of dicts that were deleted have their
+        value stored as the DeletedKey singleton.
+    :rtype: JSONDifference
     """
+
+    # For mismatched types, store the entire new value.
     if type(new) is not type(old):
         return new
 
+    # For dicts, store the created and deleted keys, and recursively store the
+    # difference of the modified keys.
     if isinstance(new, dict):
+        assert isinstance(old, dict)
+
         difference: dict = {}
+
+        # Created & modified keys
         for key in new:
             if key not in old:
+                # Created
                 difference[key] = new[key]
             else:
+                # Modified
                 key_difference = json_difference(new[key], old[key])
                 if key_difference is not UnchangedJSON:
                     difference[key] = key_difference
+
+        # Deleted keys use the DeletedKey singleton.
         for key in old:
             if key not in new:
                 difference[key] = DeletedKey
+
+        # Unchanged if difference is empty
         if len(difference) == 0:
+            return UnchangedJSON
+
+        return difference
+
+    # For lists, store the created values, and recursively store the difference of the
+    # modified values. The length of the stored list is always the same as the length of
+    # `new`.
+    elif isinstance(new, list):
+        assert isinstance(old, list)
+
+        difference: list = []
+        different: bool = False
+
+        # Pair up values from `old` and `new`.
+        for old_value, new_value in itertools.zip_longest(
+                old, new, fillvalue=NoSlot
+            ):
+            # Repeat until the end of `new` is reached.
+            if new_value is NoSlot:
+                break
+
+            # If the slot was created, store the entire new value.
+            if old_value is NoSlot:
+                difference.append(new_value)
+                different = True
+                continue
+
+            # Store the difference between the new and old values.
+            # noinspection bad-argument-type
+            difference.append(json_difference(new_value, old_value))
+
+            if difference[-1] is not UnchangedJSON:
+                different = True
+
+        if not different:
             return UnchangedJSON
         return difference
 
-    elif isinstance(new, list):
-        if len(new) > len(old):
-            if new[:len(old)] != old:
-                return new # Not just elements added to the end of list; return the entire new dict
-            return [UnchangedJSON] * len(old) + new[len(old):]
-        elif len(new) < len(old):
-            return new # Elements removed from the list; return the entire new list
-        difference: list = []
-        different: bool = False
-        for i in range(len(new)):
-            new_value: JSON = new[i]
-            old_value: JSON = old[i]
-            value_difference = json_difference(new_value, old_value)
-            difference.append(value_difference)
-            if value_difference is not UnchangedJSON:
-                different = True
-        if different:
-            return difference
-        return UnchangedJSON
-
+    # For other types, store UnchangedJSON if `old` and `new` are equivalent.
     elif new == old:
         return UnchangedJSON
 
-    return new # Cannot take difference for this type; return the entire new value
+    # Cannot take the difference for this type; store the entire new value.
+    return new
 
-def json_reverse_difference(old: JSON, difference: JSON | UnchangedJSONType) -> JSON:
+
+def json_reverse_difference(old: JSON, difference: JSONDifference) -> JSON:
     """
     Reverses ``json_difference()``.
 
-    This process is not commutative.
+    This process is noncommutative.
 
     :param old: The older JSON value.
     :type old: JSON
     :param difference: The difference between the values.
-    :type difference: JSON | UnchangedJSONType
+    :type difference: JSONDifference
     :return: The newer JSON value.
     :rtype: JSON
     """
+
+    # Unchanged data
     if difference is UnchangedJSON:
         return old
+
+    # For mismatched types, the entire new value is stored.
     if type(difference) is not type(old):
+        # noinspection bad-return
         return difference
 
+    # Dicts
     if isinstance(difference, dict):
+        assert isinstance(old, dict)
+
         new: dict = old.copy()
+
         for key in difference:
             if difference[key] is DeletedKey:
                 del new[key]
-            new[key] = difference[key]
+            elif key in old:
+                # noinspection bad-argument-type
+                new[key] = json_reverse_difference(old[key], difference[key])
+            else:
+                new[key] = difference[key]
+
         return new
 
+    # Lists
     elif isinstance(difference, list):
-        if len(difference) > len(old):
-            return old + difference[len(old):]
-        elif len(difference) < len(old):
-            return difference # Difference is smaller than old list; difference is just the new value
+        assert isinstance(old, list)
+
         new: list = []
-        for i in range(len(difference)):
-            old_value: JSON = old[i]
-            value_difference: JSON | UnchangedJSONType = difference[i]
-            new_value: JSON = json_reverse_difference(old_value, value_difference)
-            new.append(new_value)
+
+        for i, diff_value in enumerate(difference):
+            if i < len(old):
+                new.append(json_reverse_difference(old[i], diff_value))
+            else:
+                new.append(diff_value)
+
         return new
 
-    return difference # Cannot take difference for this type; difference is just the new value
+    # Cannot take difference for this type; difference is just the entire new value.
+    # noinspection bad-return
+    return difference
+
 
 class AbstractSnapshot(metaclass=ABCMeta):
     """
     Parent type for snapshots.
     """
-    def __init__(self, last_snapshot: Self) -> None:
+
+    def __init__(self, last_snapshot: Self | None) -> None:
         """
         :param last_snapshot: The last snapshot (if this is a relative snapshot).
         :type last_snapshot: Self
@@ -184,6 +276,7 @@ class AbstractSnapshot(metaclass=ABCMeta):
 
         # Save filename of last snapshot (if it exists)
         if self.is_relative:
+            assert self.last_snapshot is not None
             attributes['_last_snapshot_filename'] = self.last_snapshot.filename
             attributes['_last_snapshot_file_path'] = self.last_snapshot.file_path
 
@@ -210,26 +303,26 @@ class AbstractSnapshot(metaclass=ABCMeta):
         return repr(self)
 
     @abstractmethod
-    def overlay(self, below: Self) -> Self:
+    def overlay[T: AbstractSnapshot](self, below: T) -> T:
         """
         Overlays this snapshot on top of an absolute snapshot.
 
         :param below: The absolute snapshot to be overlaid (the older snapshot).
-        :type below: Self
+        :type below: T
         :return: The composite snapshot.
-        :rtype: Self
+        :rtype: T
         """
 
     @abstractmethod
-    def difference(self, below: Self) -> Self:
+    def difference[T: AbstractSnapshot](self, below: T) -> T:
         """
         Creates a relative snapshot that is the difference between this snapshot and another snapshot.
         Both snapshots must be absolute.
 
         :param below: The older absolute snapshot.
-        :type below: Self
+        :type below: T
         :return: The difference as a relative snapshot.
-        :rtype: Self
+        :rtype: T
         """
 
     def resolve(self) -> Self:
@@ -242,6 +335,7 @@ class AbstractSnapshot(metaclass=ABCMeta):
         self.raise_if_unlinked_relative()
 
         if self.is_relative:
+            assert self.last_snapshot is not None
             return self.overlay(self.last_snapshot.resolve())
         return self
 
@@ -262,7 +356,9 @@ class AbstractSnapshot(metaclass=ABCMeta):
         local_time: time.struct_time = time.localtime()
         random_id: str = ''.join([random.choice('0123456789abcdef') for _ in range(8)])
         self.filename = f'{type(self).__name__}{"_relative" if self.is_relative else ""}_{local_time.tm_mon:02}-{local_time.tm_mday:02}-{local_time.tm_year:04}_{local_time.tm_hour:02}-{local_time.tm_min:02}-{local_time.tm_sec:02}_{random_id}.dat'
+        assert self.filename is not None
         self.file_path = os.path.abspath(os.path.join(SNAPSHOTS_DIR, self.filename))
+        assert self.file_path is not None
 
         # Save snapshot to disk
         with open(self.file_path, 'wb') as f:
@@ -320,19 +416,21 @@ class AbstractSnapshot(metaclass=ABCMeta):
         if self.is_relative and self.last_snapshot is None:
             raise RuntimeError(f'Unlinked relative snapshot; make sure {type(self).__name__}.link_relative_subsnapshots() is defined properly')
 
+
 class JSONSnapshot(AbstractSnapshot):
     """
     A JSON response from an API.
     Might only include changes from the previous snapshot.
     """
-    def __init__(self, data: JSON | UnchangedJSONType = None, failure_message: str | None = None,
+
+    def __init__(self, data: JSON | JSONDifference = None, failure_message: str | None = None,
                  timestamp_override: float | None = None, last_snapshot: JSONSnapshot | None = None) -> None:
         """
         :param data: The JSON response (can be None).
-        :type data: JSON | UnchangedJSONType
+        :type data: JSON | JSONDifference
         :param failure_message: Optional failure message.
         :type failure_message: None
-        :param timestamp_override: Optional override for timestamp. If ommitted, will use the current timestamp.
+        :param timestamp_override: Optional override for timestamp. If omitted, will use the current timestamp.
         :type timestamp_override: float | None
         :param last_snapshot: The last snapshot (if this is a relative snapshot).
         :type last_snapshot: JSONSnapshot | None
@@ -340,7 +438,7 @@ class JSONSnapshot(AbstractSnapshot):
         """
         super().__init__(last_snapshot)
 
-        self.data: JSON | UnchangedJSONType = UnchangedJSON
+        self.data: JSON = None
         self.failure_message: str | None = failure_message
         self.timestamp: float = time.time() if timestamp_override is None else timestamp_override
 
@@ -349,14 +447,16 @@ class JSONSnapshot(AbstractSnapshot):
             return
 
         # Handle initial snapshot
-        if self.last_snapshot is None:
+        if last_snapshot is None:
+            # noinspection bad-assignment
             self.data = data
             return
 
         # Use JSON difference
+        # noinspection bad-assignment, bad-argument-type
         self.data = json_difference(data, last_snapshot.data)
 
-    def overlay(self, below: Self) -> Self:
+    def overlay(self, below: JSONSnapshot) -> JSONSnapshot:
         below.raise_if_unlinked_relative()
         self.raise_if_unlinked_relative()
         if below.is_relative:
@@ -364,6 +464,7 @@ class JSONSnapshot(AbstractSnapshot):
         if not self.is_relative:
             return self
 
+        # noinspection unresolved-references
         result = JSONSnapshot(
             data=json_reverse_difference(self.last_snapshot.data, self.data),
             failure_message=self.failure_message,
@@ -373,7 +474,7 @@ class JSONSnapshot(AbstractSnapshot):
 
         return result
 
-    def difference(self, below: Self) -> Self:
+    def difference(self, below: JSONSnapshot) -> JSONSnapshot:
         below.raise_if_unlinked_relative()
         self.raise_if_unlinked_relative()
         if below.is_relative:
@@ -399,11 +500,13 @@ class JSONSnapshot(AbstractSnapshot):
         """
         self.timestamp = time.time()
 
+
 class MetadataSnapshot(AbstractSnapshot):
     """
     The state of the metadata for all users and projects at a given time.
     Might only include changes from the previous snapshot.
     """
+
     def __init__(self, last_snapshot: MetadataSnapshot | None = None) -> None:
         """
         :param last_snapshot: The last snapshot (if this is a relative snapshot).
@@ -415,7 +518,7 @@ class MetadataSnapshot(AbstractSnapshot):
         self.removed_users: set[str] = set()
         self.removed_projects: set[str] = set()
         self.general_data: JSONSnapshot | None = None
-        self.usernames: OrderedDict[str, JSONSnapshot] = OrderedDict()
+        self.usernames: OrderedDict[str, JSONSnapshot] = OrderedDict() # Maps user IDs to JSON snapshots of usernames
         self.user_profiles: OrderedDict[str, JSONSnapshot | None] = OrderedDict()
         self.user_followers: OrderedDict[str, JSONSnapshot | None] = OrderedDict()
         self.projects: OrderedDict[str, JSONSnapshot | None] = OrderedDict()
@@ -428,7 +531,7 @@ class MetadataSnapshot(AbstractSnapshot):
             # noinspection PyUnresolvedReferences
             self.removed_projects = set(self.last_snapshot.user_followers.keys())
 
-    def overlay(self, below: Self) -> Self:
+    def overlay(self, below: MetadataSnapshot) -> MetadataSnapshot:
         below.raise_if_unlinked_relative()
         self.raise_if_unlinked_relative()
         if below.is_relative:
@@ -440,6 +543,7 @@ class MetadataSnapshot(AbstractSnapshot):
 
         composite.general_data = self.general_data
         if self.general_data is not None:
+            assert below.general_data is not None
             composite.general_data = self.general_data.overlay(below.general_data)
 
         composite.usernames = below.usernames
@@ -456,6 +560,7 @@ class MetadataSnapshot(AbstractSnapshot):
             elif self.user_profiles[user_id] is None:
                 continue
             else:
+                # noinspection unresolved-references, bad-argument-type
                 composite.user_profiles[user_id] = self.user_profiles[user_id].overlay(below.user_profiles[user_id])
 
         composite.user_followers = below.user_followers
@@ -465,6 +570,7 @@ class MetadataSnapshot(AbstractSnapshot):
             elif self.user_followers[user_id] is None:
                 continue
             else:
+                # noinspection unresolved-references, bad-argument-type
                 composite.user_followers[user_id] = self.user_followers[user_id].overlay(below.user_followers[user_id])
 
         composite.projects = below.projects
@@ -474,6 +580,7 @@ class MetadataSnapshot(AbstractSnapshot):
             elif self.projects[project_id] is None:
                 continue
             else:
+                # noinspection unresolved-references, bad-argument-type
                 composite.projects[project_id] = self.projects[project_id].overlay(below.projects[project_id])
 
         # Even though data is being pulled from an earlier snapshot, the composite snapshot is still current because
@@ -483,7 +590,7 @@ class MetadataSnapshot(AbstractSnapshot):
 
         return composite
 
-    def difference(self, below: Self) -> Self:
+    def difference(self, below: MetadataSnapshot) -> MetadataSnapshot:
         below.raise_if_unlinked_relative()
         self.raise_if_unlinked_relative()
         if below.is_relative:
@@ -511,6 +618,9 @@ class MetadataSnapshot(AbstractSnapshot):
         return difference
 
     def link_relative_subsnapshots(self) -> None:
+        assert self.general_data is not None
+        assert self.last_snapshot is not None
+
         if self.general_data.is_relative:
             self.general_data.last_snapshot = self.last_snapshot.general_data
 
@@ -607,9 +717,11 @@ class MetadataSnapshot(AbstractSnapshot):
             self.removed_users.remove(user_id)
 
         # Add entry to usernames
+        # noinspection unresolved-references
         if (not self.is_relative) or (user_id not in self.last_snapshot.usernames):
             self.usernames[user_id] = username_snapshot
         else:
+            assert self.last_snapshot is not None
             self.usernames[user_id] = username_snapshot.difference(self.last_snapshot.usernames[user_id])
         self.usernames.move_to_end(user_id)
 
@@ -666,6 +778,7 @@ class MetadataSnapshot(AbstractSnapshot):
         if not self.is_relative:
             self.general_data = general_data
             return
+        assert self.last_snapshot is not None
 
         # Get last data snapshot
         last_data: JSONSnapshot | None = self.last_snapshot.general_data
@@ -703,6 +816,7 @@ class MetadataSnapshot(AbstractSnapshot):
         if not self.is_relative:
             self.user_profiles[user_id] = user_profile
             return
+        assert self.last_snapshot is not None
 
         # Get last profile snapshot if it exists
         if user_id not in self.last_snapshot.user_profiles:
@@ -743,6 +857,7 @@ class MetadataSnapshot(AbstractSnapshot):
         if not self.is_relative:
             self.user_followers[user_id] = user_followers
             return
+        assert self.last_snapshot is not None
 
         # Get last followers snapshot if it exists
         if user_id not in self.last_snapshot.user_followers:
@@ -783,6 +898,7 @@ class MetadataSnapshot(AbstractSnapshot):
         if not self.is_relative:
             self.projects[project_id] = project
             return
+        assert self.last_snapshot is not None
 
         # Get last metadata snapshot if it exists
         if project_id not in self.last_snapshot.projects:

@@ -1,20 +1,26 @@
+# IMPORTS
+
 from __future__ import annotations
 
 from snapshot import JSONSnapshot, MetadataSnapshot, JSON
 from typing import Any, Callable
-import threading
 import traceback
 import requests
-import keyboard
 import tqdm
 import time
 import math
 import sys
 
+
+
+# CONSTANTS
+
 BASE_URL: str = 'https://projects.penguinmod.com'
 MAX_SIMULTANEOUS_LIGHT_REQUESTS: int = 4
 HEAVY_REQUEST_DELAY: float = 10.0
 EXPECTED_PAGE_SIZE: int = 20 # Page size used in search APIs
+
+
 
 # APIS USED BY THIS PROGRAM
 #
@@ -30,6 +36,11 @@ EXPECTED_PAGE_SIZE: int = 20 # Page size used in search APIs
 #    - HTTP 403 {"error": "PrivateProfile"} if user's profile is set to private
 # 6. GET /api/v1/projects/getproject?requestType=metadata&projectID=<PROJECT_ID>
 #    - HTTP 404 {"error": "Project not found"} if project doesn't exist or is not public
+
+
+
+# DEFINITIONS
+
 
 def fetch(
         method: str, url: str, params: dict[str, str] | None = None, data: dict[str, Any] | None = None,
@@ -58,7 +69,7 @@ def fetch(
     :type critical: bool
     :param status_prefix: String to be prepended to every status update written to standard output.
     :type status_prefix: str
-    :param validator: Function that should accept a ``requests.Response`` object and JSON from an attempt response and raise ``requests.exceptions.RequestException`` if the attempt should be considered "failed". If ommitted, the default validator will raise if the response status code was not success.
+    :param validator: Function that should accept a ``requests.Response`` object and JSON from an attempt response and raise ``requests.exceptions.RequestException`` if the attempt should be considered "failed". If omitted, the default validator will raise if the response status code was not success.
     :type validator: Callable[[requests.Response, JSON], None]
     :return:
     """
@@ -89,14 +100,15 @@ def fetch(
 
         if critical:
             # input(status_prefix + f'Fetch failed max of {max_retries+1} times with error:\n{type(last_exception).__name__}: {last_exception}\nPress ENTER to try again.')
-            # input(status_prefix + f'Fetch failed max of {max_retries+1} times; press ENTER to try again.')
-            sys.stdout.write(status_prefix + f'Fetch failed max of {max_retries+1} times; press [Q+M] to try again.')
-            sys.stdout.flush()
-            keyboard.wait('Q+M')
+            input(status_prefix + f'Fetch failed max of {max_retries+1} times; press ENTER to try again.')
+            # sys.stdout.write(status_prefix + f'Fetch failed max of {max_retries+1} times; press [Q+M] to try again.')
+            # sys.stdout.flush()
+            # keyboard.wait('Q+M')
         else:
             i += 1
 
     return JSONSnapshot(None, failure_message=f'Error during fetch: {type(last_exception).__name__}: {last_exception}')
+
 
 def countdown(duration: float, prefix: str = '', suffix: str = '') -> None:
     start_time: float = time.time()
@@ -108,6 +120,12 @@ def countdown(duration: float, prefix: str = '', suffix: str = '') -> None:
         sys.stdout.flush()
         time.sleep(0.05)
 
+
+
+# MAIN
+
+
+# noinspection bad-assignment, unresolved-references, unused-local
 def main() -> None:
     print('PENGUINMOD METADATA ARCHIVES')
     print('============================')
@@ -116,6 +134,7 @@ def main() -> None:
 
     snapshot = MetadataSnapshot()
     snapshot.start()
+
 
     # STAGE 1: GENERAL DATA
 
@@ -130,6 +149,7 @@ def main() -> None:
     user_count: int = general_data.data['userCount']
     project_count: int = general_data.data['projectCount']
 
+
     # STAGE 2: FIND USERNAMES
 
     print('\033[2J\033[3J\033[H', end='') # Clear terminal
@@ -139,15 +159,16 @@ def main() -> None:
     progress_bar = tqdm.tqdm(total=user_count, unit='user', desc='Progress:')
 
     user_page_count: int = math.ceil(user_count / EXPECTED_PAGE_SIZE)
-    # user_page_count: int = 5 # Testing
+    user_page_count: int = 5 # Testing
 
     for page_idx in range(user_page_count):
         response = fetch(
             'GET', BASE_URL + '/api/v1/projects/searchusers',
-            params={'page': page_idx, 'query': ''}, status_prefix='\033[4;1H\033[0K', # Line 4
+            params={'page': str(page_idx), 'query': ''}, status_prefix='\033[4;1H\033[0K', # Line 4
             max_retries=3, initial_retry_delay=HEAVY_REQUEST_DELAY, backoff_factor=1.5,
             critical=True,
         )
+        assert isinstance(response.data, list)
 
         page_usernames: list[str] = []
         for user in response.data:
@@ -164,6 +185,7 @@ def main() -> None:
     sys.stdout.write('\033[3;1H\033[0K') ; sys.stdout.flush() # Line 3
     progress_bar.close()
 
+
     # STAGE 3: USER PROFILES
     # TODO: implement multiple simultaneous requests
 
@@ -173,6 +195,7 @@ def main() -> None:
 
     progress_bar = tqdm.tqdm(total=user_count, unit='user', desc='Progress:')
 
+    # noinspection unused-parameter
     def stage_3_validator(response: requests.Response, json_data: JSON) -> None:
         if response.status_code == 404:
             return # User doesn't exist or is banned; not a fetching error
@@ -200,7 +223,9 @@ def main() -> None:
     input('TODO')
     snapshot.finish()
 
+
 if __name__ == '__main__':
+    # noinspection broad-exception
     try:
         main()
     except:
@@ -210,4 +235,3 @@ if __name__ == '__main__':
         print('============================')
         print('')
         input('Press ENTER to close.')
-
