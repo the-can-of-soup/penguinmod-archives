@@ -101,9 +101,6 @@ def fetch(
         if critical:
             # input(status_prefix + f'Fetch failed max of {max_retries+1} times with error:\n{type(last_exception).__name__}: {last_exception}\nPress ENTER to try again.')
             input(status_prefix + f'Fetch failed max of {max_retries+1} times; press ENTER to try again.')
-            # sys.stdout.write(status_prefix + f'Fetch failed max of {max_retries+1} times; press [Q+M] to try again.')
-            # sys.stdout.flush()
-            # keyboard.wait('Q+M')
         else:
             i += 1
 
