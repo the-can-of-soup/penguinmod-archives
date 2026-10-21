@@ -375,8 +375,7 @@ def main() -> None:
             progress_bar.update(len(response.data))
 
             # Line 6 (clear to end of screen)
-            print(f'\033[6;1H\033[0JProjects on page {page_idx+1}:'
-                + f' {", ".join(repr(project['title']) for project in response.data)}')
+            print(f'\033[6;1H\033[0J{len(response.data)} project{"" if len(response.data) == 1 else "s"} on page {page_idx+1}')
 
             page_idx += 1
 
