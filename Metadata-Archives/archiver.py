@@ -156,7 +156,7 @@ def main() -> None:
     progress_bar = tqdm.tqdm(total=user_count, unit='user', desc='Progress:')
 
     user_page_count: int = math.ceil(user_count / EXPECTED_PAGE_SIZE)
-    user_page_count: int = 5 # Testing
+    # user_page_count: int = 5 # TODO: remove testing
 
     for page_idx in range(user_page_count):
         response = fetch(
@@ -216,7 +216,7 @@ def main() -> None:
 
         user_idx += 1
 
-    # snapshot.save_to_file() # Testing
+    # snapshot.save_to_file() # TODO: remove testing
     input('TODO')
     snapshot.finish()
 
