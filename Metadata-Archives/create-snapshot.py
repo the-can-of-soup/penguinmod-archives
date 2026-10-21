@@ -292,12 +292,13 @@ def main() -> None:
 
     for user_id, username_snapshot in snapshot.usernames.items():
         username: str = username_snapshot.data
+        profile_data = snapshot.user_profiles[user_id].data
 
         follower_page_count_str: str = '?'
-        if 'followers' in snapshot.user_profiles[user_id].data:
+        if 'followers' in profile_data and profile_data.get('success') is True:
             # noinspection unsupported-operator
             follower_page_count_str = str(math.ceil(
-                snapshot.user_profiles[user_id].data['followers'] / EXPECTED_PAGE_SIZE
+                profile_data['followers'] / EXPECTED_PAGE_SIZE
             ))
 
         followers: list[JSON] | None = []
