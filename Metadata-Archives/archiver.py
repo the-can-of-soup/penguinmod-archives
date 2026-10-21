@@ -15,7 +15,7 @@ import sys
 
 # CONSTANTS
 
-BASE_URL: str = 'https://projects.penguinmod.com'
+API_ROOT: str = 'https://projects.penguinmod.com'
 MAX_SIMULTANEOUS_LIGHT_REQUESTS: int = 4
 HEAVY_REQUEST_DELAY: float = 10.0
 EXPECTED_PAGE_SIZE: int = 20 # Page size used in search APIs
@@ -34,8 +34,6 @@ EXPECTED_PAGE_SIZE: int = 20 # Page size used in search APIs
 # 5. GET /api/v1/projects/getprojectsbyauthor?authorUsername=<USERNAME>&page=<PAGE_INDEX>
 #    - HTTP 404 {"error": "User not found"} if user doesn't exist or is banned
 #    - HTTP 403 {"error": "PrivateProfile"} if user's profile is set to private
-# 6. GET /api/v1/projects/getproject?requestType=metadata&projectID=<PROJECT_ID>
-#    - HTTP 404 {"error": "Project not found"} if project doesn't exist or is not public
 
 
 
@@ -127,7 +125,8 @@ def main() -> None:
     print('PENGUINMOD METADATA ARCHIVES')
     print('============================')
     print('')
-    input('Press ENTER to take a snapshot.\nThis will take a very, VERY long time.')
+    input('Press ENTER to take a snapshot of ALL available project and user metadata on'
+        + ' PenguinMod.\nThis will take a very, VERY long time.')
 
     snapshot = MetadataSnapshot()
     snapshot.start()
@@ -139,8 +138,8 @@ def main() -> None:
     print('STAGE 1/6: GENERAL DATA')
     print('-----------------------')
 
-    general_data: JSONSnapshot = fetch('GET', BASE_URL + '/api/v1/misc/getStats',
-        critical=True, status_prefix='\033[3;1H\033[0J') # Line 3 (clear to end of screen)
+    general_data: JSONSnapshot = fetch('GET', API_ROOT + '/api/v1/misc/getStats',
+                                       critical=True, status_prefix='\033[3;1H\033[0J') # Line 3 (clear to end of screen)
     snapshot.add_general_data(general_data)
 
     user_count: int = general_data.data['userCount']
@@ -160,7 +159,7 @@ def main() -> None:
 
     for page_idx in range(user_page_count):
         response = fetch(
-            'GET', BASE_URL + '/api/v1/projects/searchusers',
+            'GET', API_ROOT + '/api/v1/projects/searchusers',
             params={'page': str(page_idx), 'query': ''}, status_prefix='\033[4;1H\033[0K', # Line 4
             max_retries=3, initial_retry_delay=HEAVY_REQUEST_DELAY, backoff_factor=1.5,
             critical=True,
@@ -203,7 +202,7 @@ def main() -> None:
         username: str = snapshot.usernames[user_id].data
 
         response = fetch(
-            'GET', BASE_URL + '/api/v1/users/profile',
+            'GET', API_ROOT + '/api/v1/users/profile',
             params={'target': username}, status_prefix='\033[4;1H\033[0K', # Line 4
             validator=stage_3_validator, critical=True, # Not actually critical, but I want to capture every user
         )
