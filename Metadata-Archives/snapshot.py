@@ -598,6 +598,7 @@ class MetadataSnapshot(AbstractSnapshot):
             raise ValueError('"difference()" may only be called on absolute snapshots')
 
         difference = MetadataSnapshot(last_snapshot=below)
+        difference.start()
 
         difference.add_general_data(self.general_data)
 
@@ -608,6 +609,7 @@ class MetadataSnapshot(AbstractSnapshot):
         for user_id in self.user_followers:
             difference.add_user_followers(user_id, self.user_followers[user_id])
         for project_id in self.projects:
+            difference.add_project_id(project_id)
             difference.add_project_metadata(project_id, self.projects[project_id])
 
         # The relative snapshot is just as accurate as the newer snapshot, so it uses its timestamps
