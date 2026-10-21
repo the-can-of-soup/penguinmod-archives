@@ -132,6 +132,15 @@ def main() -> None:
     print('PENGUINMOD METADATA ARCHIVES')
     print('============================')
     print('')
+
+    last_snapshot_path: str | None = input('Path of previous snapshot file (empty to'
+        + ' create an absolute snapshot; only put trusted files here): ').strip()
+    print('')
+    if last_snapshot_path == '':
+        last_snapshot_path = None
+    if last_snapshot_path is not None:
+        assert os.path.isfile(last_snapshot_path)
+
     input('Press ENTER to take a snapshot of ALL available project and user metadata on'
         + ' PenguinMod.\nThis will take a very, VERY long time.')
 
@@ -162,7 +171,9 @@ def main() -> None:
     print('STAGE 2/5: DISCOVER USERS')
     print('-------------------------')
 
-    progress_bar = tqdm.tqdm(total=user_count, unit='user', desc='Progress')
+    progress_bar = tqdm.tqdm(
+        total=user_count, unit='user', desc='Progress', leave=True,
+    )
 
     user_page_count: int = math.ceil(user_count / EXPECTED_PAGE_SIZE)
 
@@ -185,8 +196,8 @@ def main() -> None:
             page_usernames.append(user['username'])
 
         # Line 3
-        sys.stdout.write('\033[3;1H\033[0K') ; sys.stdout.flush()
-        progress_bar.update(len(response.data))
+        sys.stdout.write('\033[3;1H\033[0K')
+        progress_bar.update(len(response.data)) ; sys.stdout.flush()
 
         # Line 5 (clear to end of screen)
         if len(response.data) > 0:
@@ -198,8 +209,8 @@ def main() -> None:
         countdown(HEAVY_REQUEST_DELAY, prefix='\033[4;1H\033[0KWaiting... ')
 
         # TODO: remove testing
-        # if page_idx >= 1:
-        #     break
+        if page_idx >= 1:
+            break
 
         if len(response.data) == 0:
             break
@@ -207,7 +218,7 @@ def main() -> None:
 
     # Line 3
     sys.stdout.write('\033[3;1H\033[0K')
-    progress_bar.close()
+    progress_bar.close() ; sys.stdout.flush()
 
 
     # noinspection unused-parameter
@@ -235,7 +246,7 @@ def main() -> None:
     print('----------------------------')
 
     progress_bar = tqdm.tqdm(
-        desc='Progress', total=len(snapshot.usernames), unit='user'
+        desc='Progress', total=len(snapshot.usernames), unit='user', leave=True,
     )
 
     total_follower_page_count: int = 0
@@ -258,15 +269,15 @@ def main() -> None:
             )
 
         # Line 3
-        sys.stdout.write('\033[3;1H\033[0K') ; sys.stdout.flush()
-        progress_bar.update(1)
+        sys.stdout.write('\033[3;1H\033[0K')
+        progress_bar.update(1) ; sys.stdout.flush()
 
         # Line 5 (clear to end of screen)
         print(f'\033[5;1H\033[0JFetched profile of user {username} ({user_id})')
 
     # Line 3
-    sys.stdout.write('\033[3;1H\033[0K') ; sys.stdout.flush()
-    progress_bar.close()
+    sys.stdout.write('\033[3;1H\033[0K')
+    progress_bar.close() ; sys.stdout.flush()
 
 
     # STAGE 4: FOLLOWERS
@@ -276,7 +287,7 @@ def main() -> None:
     print('--------------------')
 
     progress_bar = tqdm.tqdm(
-        desc='Progress', total=total_follower_page_count, unit='page'
+        desc='Progress', total=total_follower_page_count, unit='page', leave=True,
     )
 
     for user_id, username_snapshot in snapshot.usernames.items():
@@ -315,11 +326,11 @@ def main() -> None:
                 break
 
             # Line 3
-            sys.stdout.write('\033[3;1H\033[0K') ; sys.stdout.flush()
-            progress_bar.update(1)
+            sys.stdout.write('\033[3;1H\033[0K')
+            progress_bar.update(1) ; sys.stdout.flush()
 
             # Line 6 (clear to end of screen)
-            print(f'\033[6;1H\033[0JFollowers on page {page_idx+1}/{follower_page_count_str}:'
+            print(f'\033[6;1H\033[0JFollowers of {username} page {page_idx+1}/{follower_page_count_str}:'
                 + f' {", ".join(follower['username'] for follower in response.data)}')
 
             page_idx += 1
@@ -328,8 +339,8 @@ def main() -> None:
             snapshot.add_user_followers(user_id, JSONSnapshot(followers))
 
     # Line 3
-    sys.stdout.write('\033[3;1H\033[0K') ; sys.stdout.flush()
-    progress_bar.close()
+    sys.stdout.write('\033[3;1H\033[0K')
+    progress_bar.close() ; sys.stdout.flush()
 
 
     # STAGE 5: PROJECT METADATA
@@ -339,7 +350,7 @@ def main() -> None:
     print('---------------------------')
 
     progress_bar = tqdm.tqdm(
-        desc='Progress', total=project_count, unit='project'
+        desc='Progress', total=project_count, unit='project', leave=True,
     )
 
     for user_id, username_snapshot in snapshot.usernames.items():
@@ -371,17 +382,17 @@ def main() -> None:
                 break
 
             # Line 3
-            sys.stdout.write('\033[3;1H\033[0K') ; sys.stdout.flush()
-            progress_bar.update(len(response.data))
+            sys.stdout.write('\033[3;1H\033[0K')
+            progress_bar.update(len(response.data)) ; sys.stdout.flush()
 
             # Line 6 (clear to end of screen)
-            print(f'\033[6;1H\033[0J{len(response.data)} project{"" if len(response.data) == 1 else "s"} on page {page_idx+1}')
+            print(f'\033[6;1H\033[0J{len(response.data)} project{"" if len(response.data) == 1 else "s"} on {username} page {page_idx+1}')
 
             page_idx += 1
 
     # Line 3
-    sys.stdout.write('\033[3;1H\033[0K') ; sys.stdout.flush()
-    progress_bar.close()
+    sys.stdout.write('\033[3;1H\033[0K')
+    progress_bar.close() ; sys.stdout.flush()
 
 
     # END
@@ -391,17 +402,42 @@ def main() -> None:
     print('============================')
     print('')
 
-    snapshot.finish()
+    last_snapshot: MetadataSnapshot | None = None
 
-    assert snapshot.start_time is not None and snapshot.end_time is not None
-    time_elapsed: float = snapshot.end_time - snapshot.start_time
-    print(f'Snapshot finished in {int(time_elapsed//(24*3600))}d{int(time_elapsed//3600%24)}h{int(time_elapsed//60%60)}m{time_elapsed%60:.3f}s.')
+    if last_snapshot_path is not None:
+        print('Loading snapshot chain...', end='')
+        # noinspection broad-exception
+        try:
+            last_snapshot = MetadataSnapshot.load_from_file(last_snapshot_path)
+        except:
+            print('\rFAILED TO LOAD SNAPSHOT CHAIN')
+            print('=============================')
+            traceback.print_exc()
+            print('=============================')
+            print('The absolute snapshot will be saved as-is instead.')
+        else:
+            print(f'\rSnapshot chain loaded from {last_snapshot_path!r}'.ljust(29))
+
+    if last_snapshot is not None:
+        print('Resolving snapshot chain diffs...', end='')
+        last_snapshot: MetadataSnapshot = last_snapshot.resolve()
+
+        print('\rComputing diff for this snapshot...', end='')
+        snapshot = snapshot.difference(last_snapshot)
+
+        print('\rComputed diff for this snapshot'.ljust(36))
 
     print('Saving...', end='')
     snapshot.save_to_file()
     assert snapshot.file_path is not None
     snapshot_size: int = os.stat(snapshot.file_path).st_size
-    print(f'\rSnapshot written to {snapshot.file_path} ({snapshot_size:,} bytes)!')
+    print(f'\rSnapshot written to {snapshot.file_path!r} ({snapshot_size:,} bytes)')
+
+    snapshot.finish()
+
+    assert snapshot.start_time is not None and snapshot.end_time is not None
+    time_elapsed: float = snapshot.end_time - snapshot.start_time
+    print(f'Snapshot completed in {int(time_elapsed//(24*3600))}d,{int(time_elapsed//3600%24)}h,{int(time_elapsed//60%60)}m,{time_elapsed%60:.3f}s!')
 
     print('')
     input('Press ENTER to exit.')
@@ -417,4 +453,5 @@ if __name__ == '__main__':
         traceback.print_exc()
         print('============================')
         print('')
-        input('Press ENTER to close.')
+        input('Press ENTER to exit.')
+        sys.exit(1)

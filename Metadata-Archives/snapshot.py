@@ -389,8 +389,7 @@ class AbstractSnapshot(metaclass=ABCMeta):
                 raise RuntimeError('Attempted to load a relative snapshot file that doesn\'t contain the path to the previous snapshot file')
             snapshot.last_snapshot = cls.load_from_file(snapshot._last_snapshot_file_path)
 
-        # Link relative subsnapshots
-        snapshot.link_relative_subsnapshots()
+            snapshot.link_relative_subsnapshots()
 
         return snapshot
 
