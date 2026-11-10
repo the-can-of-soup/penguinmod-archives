@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import os
 
-from snapshot import JSONSnapshot, MetadataSnapshot, JSON
+from snapshot import JSONSnapshot, MetadataSnapshot, JSON, SNAPSHOTS_DIR
 from typing import Any, Callable
 import traceback
 import requests
@@ -22,7 +22,7 @@ import sys
 # CONSTANTS
 
 API_ROOT: str = 'https://projects.penguinmod.com'
-LIGHT_REQUEST_MAX_SIMULTANEOUS: int = 4
+LIGHT_REQUEST_MAX_SIMULTANEOUS: int = 4 # TODO: Implement this or remove it
 HEAVY_REQUEST_DELAY: float = 10.0
 HEAVY_REQUEST_BACKOFF_FACTOR: float = 1.5
 HEAVY_REQUEST_MAX_RETRIES: int = 3
@@ -212,10 +212,6 @@ def main() -> None:
         # Line 4
         countdown(HEAVY_REQUEST_DELAY, prefix='\033[4;1H\033[0KWaiting... ')
 
-        # TODO: remove testing
-        # if page_idx >= 1:
-        #     break
-
         if len(response.data) == 0:
             break
         page_idx += 1
@@ -243,7 +239,6 @@ def main() -> None:
 
 
     # STAGE 3: USER PROFILE DATA
-    # TODO: implement multiple simultaneous requests
 
     print('\033[2J\033[3J\033[H', end='')  # Clear terminal
     print('STAGE 3/5: USER PROFILE DATA')
@@ -434,9 +429,10 @@ def main() -> None:
 
     print('Saving...', end='')
     snapshot.save_to_file()
-    assert snapshot.file_path is not None
-    snapshot_size: int = os.stat(snapshot.file_path).st_size
-    print(f'\rSnapshot written to {snapshot.file_path!r} ({snapshot_size:,} bytes)')
+    assert snapshot.filename is not None
+    file_path: str = os.path.join(SNAPSHOTS_DIR, snapshot.filename)
+    snapshot_size: int = os.stat(file_path).st_size
+    print(f'\rSnapshot written to {file_path!r} ({snapshot_size:,} bytes)')
 
     snapshot.finish()
 
