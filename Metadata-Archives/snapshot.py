@@ -263,6 +263,8 @@ class AbstractSnapshot(metaclass=ABCMeta):
         ]
         self.last_snapshot: Self | None = last_snapshot
 
+        self.snapshot_id: str = ''.join([random.choice('0123456789abcdef') for _ in range(8)])
+
         self._last_snapshot_filename: str | None = None
         self.is_relative: bool = self.last_snapshot is not None
         self.filename: str | None = None
@@ -350,8 +352,11 @@ class AbstractSnapshot(metaclass=ABCMeta):
 
         # Generate filename
         local_time: time.struct_time = time.localtime()
-        random_id: str = ''.join([random.choice('0123456789abcdef') for _ in range(8)])
-        self.filename = f'{type(self).__name__}{"_relative" if self.is_relative else ""}_{local_time.tm_mon:02}-{local_time.tm_mday:02}-{local_time.tm_year:04}_{local_time.tm_hour:02}-{local_time.tm_min:02}-{local_time.tm_sec:02}_{random_id}.dat'
+        relative_info: str = ''
+        if self.is_relative:
+            # noinspection unresolved-references
+            relative_info = f'_relative_from_{self.last_snapshot.snapshot_id}'
+        self.filename = f'{type(self).__name__}_{local_time.tm_year:04}-{local_time.tm_mon:02}-{local_time.tm_mday:02}_{local_time.tm_hour:02}-{local_time.tm_min:02}-{local_time.tm_sec:02}_{self.snapshot_id}{relative_info}.dat'
         assert self.filename is not None
 
         # Save snapshot to disk
