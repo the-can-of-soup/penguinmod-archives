@@ -304,6 +304,12 @@ def main() -> None:
 
         page_idx: int = 0
         while True:
+            if profile_data.get('followers', None) == 0:
+                # Don't bother fetching even a single page of followers for accounts
+                # with zero followers; they make up most of the users, so this saves a
+                # lot of time
+                break
+
             # Line 4
             print(f'\033[4;1H\033[0KUser {username} ({user_id}) page {page_idx+1}/{follower_page_count_str}')
 
@@ -322,7 +328,8 @@ def main() -> None:
             assert isinstance(response.data, list)
             followers.extend(response.data)
 
-            if len(response.data) == 0:
+            if len(response.data) < EXPECTED_PAGE_SIZE:
+                # Page is not full, so we reached the end
                 break
 
             # Line 3
