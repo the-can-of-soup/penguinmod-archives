@@ -264,10 +264,8 @@ class AbstractSnapshot(metaclass=ABCMeta):
         self.last_snapshot: Self | None = last_snapshot
 
         self._last_snapshot_filename: str | None = None
-        self._last_snapshot_file_path: str | None = None
         self.is_relative: bool = self.last_snapshot is not None
         self.filename: str | None = None
-        self.file_path: str | None = None
 
     def __getstate__(self) -> dict[str, Any]:
         self.raise_if_unlinked_relative()
@@ -278,13 +276,11 @@ class AbstractSnapshot(metaclass=ABCMeta):
         if self.is_relative:
             assert self.last_snapshot is not None
             attributes['_last_snapshot_filename'] = self.last_snapshot.filename
-            attributes['_last_snapshot_file_path'] = self.last_snapshot.file_path
 
         return {i: attributes[i] for i in attributes if i not in self._excluded_from_serialization}
 
     def __setstate__(self, state: dict[str, Any]) -> None:
         self._last_snapshot_filename = None
-        self._last_snapshot_file_path = None
 
         self.__dict__.update(state)
 
@@ -357,11 +353,9 @@ class AbstractSnapshot(metaclass=ABCMeta):
         random_id: str = ''.join([random.choice('0123456789abcdef') for _ in range(8)])
         self.filename = f'{type(self).__name__}{"_relative" if self.is_relative else ""}_{local_time.tm_mon:02}-{local_time.tm_mday:02}-{local_time.tm_year:04}_{local_time.tm_hour:02}-{local_time.tm_min:02}-{local_time.tm_sec:02}_{random_id}.dat'
         assert self.filename is not None
-        self.file_path = os.path.abspath(os.path.join(SNAPSHOTS_DIR, self.filename))
-        assert self.file_path is not None
 
         # Save snapshot to disk
-        with open(self.file_path, 'wb') as f:
+        with open(os.path.join(SNAPSHOTS_DIR, self.filename), 'wb') as f:
             # noinspection PyTypeChecker
             pickle.dump(self, f)
 
@@ -370,7 +364,8 @@ class AbstractSnapshot(metaclass=ABCMeta):
     @classmethod
     def load_from_file(cls, file_path: str) -> Self:
         """
-        Creates a snapshot object by loading from a file.
+        Creates a snapshot object by loading from a file. For relative snapshots, the
+        previous snapshots must be in the same directory as the snapshot being loaded.
 
         WARNING: This function is vulnerable to deserialization attacks!
 
@@ -385,9 +380,11 @@ class AbstractSnapshot(metaclass=ABCMeta):
 
         # Load last snapshot
         if snapshot.is_relative:
-            if snapshot._last_snapshot_file_path is None:
-                raise RuntimeError('Attempted to load a relative snapshot file that doesn\'t contain the path to the previous snapshot file')
-            snapshot.last_snapshot = cls.load_from_file(snapshot._last_snapshot_file_path)
+            if snapshot._last_snapshot_filename is None:
+                raise RuntimeError('Attempted to load a relative snapshot file that doesn\'t contain the name of the previous snapshot file')
+
+            last_snapshot_file_path: str = os.path.join(os.path.dirname(os.path.abspath(file_path)), snapshot._last_snapshot_filename)
+            snapshot.last_snapshot = cls.load_from_file(last_snapshot_file_path)
 
             snapshot.link_relative_subsnapshots()
 

@@ -1,7 +1,4 @@
 # TODO: Fix stopping early in stage 2, causing it to not discover all users
-# TODO (in snapshot.py): Remove `file_path` attribute from snapshots; instead, use
-#   `filename` to locate the previous snapshot when loading, and require the previous
-#   snapshot to be in the same directory in order for this to work
 # TODO (in snapshot.py): Add `snapshot_id` attribute to snapshots; it is the string of
 #   random hexadecimal characters at the end of the snapshot filename. Maybe make this
 #   ID allow any base64 chars instead of just hex? Maybe make relative snapshot
