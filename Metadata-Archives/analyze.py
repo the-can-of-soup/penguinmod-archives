@@ -35,7 +35,7 @@ def project_id_stats(snapshot_: snapshot.MetadataSnapshot) -> None:
             max_consecutive_digits_ids.append(project_id)
 
     print(f'IDs with the most consecutive digits: {', '.join(max_consecutive_digits_ids)}')
-    print(f'Non-numerical IDs: {', '.join(i for i in snapshot_.projects if not i.isdigit())}')
+    print(f'Non-numerical project IDs: {', '.join(i for i in snapshot_.projects if not i.isdigit())}')
 
 
 
